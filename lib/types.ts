@@ -36,6 +36,14 @@ export interface JobApplication {
   updatedAt: string;
 }
 
+export interface ParsedJob {
+  title: string;
+  company: string;
+  location: string;
+  salary?: Salary;
+  description: string;
+}
+
 export const STATUS_LABELS: Record<JobStatus, string> = {
   saved: 'Saved',
   applied: 'Applied',

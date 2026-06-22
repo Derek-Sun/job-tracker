@@ -3,14 +3,14 @@
 import { useState } from 'react';
 import type { JobApplication, JobStatus, Salary, SalaryBand } from '@/lib/types';
 import { STATUS_LABELS } from '@/lib/types';
-import { Plus, X, Sparkles } from 'lucide-react';
+import { Plus, X, Sparkles, Loader2 } from 'lucide-react';
 
 const ALL_STATUSES = Object.keys(STATUS_LABELS) as JobStatus[];
 
 interface Props {
   initial: Partial<JobApplication>;
   onSave: (job: Partial<JobApplication>) => void | Promise<void>;
-  onParse?: (text: string) => void;
+  onParse?: (text: string) => void | Promise<void>;
   submitLabel?: string;
 }
 
@@ -33,7 +33,8 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
   );
   const [description, setDescription] = useState(initial.description ?? '');
   const [notes, setNotes] = useState(initial.notes ?? '');
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]   = useState(false);
+  const [parsing, setParsing] = useState(false);
 
   function updateBand(i: number, field: keyof BandEntry, val: string) {
     const next = [...salaryBands];
@@ -173,10 +174,15 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
         {onParse && description.trim() && (
           <button
             type="button"
-            onClick={() => onParse(description)}
-            className="mt-2 flex items-center gap-1.5 text-xs font-medium text-indigo-500 hover:text-indigo-700 transition-colors"
+            disabled={parsing}
+            onClick={async () => {
+              setParsing(true);
+              try { await onParse(description); } finally { setParsing(false); }
+            }}
+            className="mt-2 flex items-center gap-1.5 text-xs font-medium text-indigo-500 hover:text-indigo-700 disabled:opacity-50 transition-colors"
           >
-            <Sparkles size={12} /> Parse fields from description
+            {parsing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+            {parsing ? 'Parsing…' : 'Parse fields from description'}
           </button>
         )}
       </FormSection>

@@ -5,26 +5,22 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { JobForm } from '@/components/JobForm';
 import { saveJob } from '@/lib/storage';
-import { parseJobDescription } from '@/lib/parser';
-import type { JobApplication } from '@/lib/types';
-import type { StructuredJobFields } from '@/app/api/fetch-job/route';
+import type { JobApplication, ParsedJob } from '@/lib/types';
 import { newId } from '@/lib/utils';
 import { ArrowLeft, Link2, Loader2 } from 'lucide-react';
 
 export default function NewJobPage() {
   const router = useRouter();
-  const [jobUrl, setJobUrl]     = useState('');
+  const [jobUrl, setJobUrl]         = useState('');
   const [fetchError, setFetchError] = useState('');
-  const [fetching, setFetching] = useState(false);
-  const [parsed, setParsed]     = useState<Partial<JobApplication> | null>(null);
+  const [fetching, setFetching]     = useState(false);
+  const [parsed, setParsed]         = useState<Partial<JobApplication> | null>(null);
 
-  function applyParsed(text: string, sourceUrl?: string, structured?: StructuredJobFields) {
-    const result = parseJobDescription(text);
+  function applyParsed(result: ParsedJob, sourceUrl?: string) {
     setParsed({
-      // Structured fields from JSON-LD take priority over regex-parsed values
-      title: structured?.title || result.title,
-      company: structured?.company || result.company,
-      location: structured?.location || result.location,
+      title: result.title,
+      company: result.company,
+      location: result.location,
       salary: result.salary,
       description: result.description,
       status: parsed?.status ?? 'applied',
@@ -44,12 +40,22 @@ export default function NewJobPage() {
       });
       const data = await res.json();
       if (!res.ok) { setFetchError(data.error ?? 'Failed to fetch page'); return; }
-      applyParsed(data.text, jobUrl.trim(), data.structured);
+      applyParsed(data, jobUrl.trim());
     } catch {
       setFetchError('Network error — could not reach the server');
     } finally {
       setFetching(false);
     }
+  }
+
+  async function handleParse(text: string) {
+    const res = await fetch('/api/parse-job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    if (res.ok) applyParsed(data);
   }
 
   async function handleSave(fields: Partial<JobApplication>) {
@@ -115,7 +121,7 @@ export default function NewJobPage() {
         key={parsed ? JSON.stringify({ t: parsed.title, c: parsed.company, d: (parsed.description ?? '').slice(0, 30) }) : 'empty'}
         initial={parsed ?? { status: 'applied' }}
         onSave={handleSave}
-        onParse={applyParsed}
+        onParse={handleParse}
         submitLabel="Save Application"
       />
     </div>
