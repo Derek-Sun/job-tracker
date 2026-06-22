@@ -7,7 +7,7 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const jobs = dbGetAllJobs(session.userId);
+  const jobs = await dbGetAllJobs(session.userId);
   return NextResponse.json(jobs);
 }
 
@@ -16,6 +16,6 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const job: JobApplication = await req.json();
-  dbInsertJob(job, session.userId);
+  await dbInsertJob(job, session.userId);
   return NextResponse.json(job, { status: 201 });
 }

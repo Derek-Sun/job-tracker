@@ -1,82 +1,47 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import { sql } from '@vercel/postgres';
 import type { JobApplication, SalaryBand } from './types';
 
-const DB_PATH = path.join(process.cwd(), 'jobs.db');
+// ── Schema initialisation ────────────────────────────────────────────────────
+// Runs once per cold start; subsequent calls reuse the resolved promise.
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __jobsDb: Database.Database | undefined;
+let schemaPromise: Promise<void> | null = null;
+
+async function initSchema(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id            TEXT PRIMARY KEY,
+      email         TEXT UNIQUE NOT NULL,
+      name          TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at    TEXT NOT NULL
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS jobs (
+      id               TEXT PRIMARY KEY,
+      user_id          TEXT NOT NULL DEFAULT '',
+      title            TEXT NOT NULL,
+      company          TEXT NOT NULL,
+      location         TEXT,
+      salary_raw       TEXT,
+      salary_min       INTEGER,
+      salary_max       INTEGER,
+      salary_currency  TEXT,
+      salary_bands     TEXT NOT NULL DEFAULT '[]',
+      responsibilities TEXT NOT NULL DEFAULT '',
+      requirements     TEXT NOT NULL DEFAULT '',
+      status           TEXT NOT NULL DEFAULT 'applied',
+      url              TEXT,
+      notes            TEXT,
+      applied_at       TEXT NOT NULL,
+      updated_at       TEXT NOT NULL
+    )
+  `;
 }
 
-function getDb(): Database.Database {
-  if (!global.__jobsDb) {
-    global.__jobsDb = new Database(DB_PATH);
-    global.__jobsDb.pragma('journal_mode = WAL');
-    global.__jobsDb.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id            TEXT PRIMARY KEY,
-        email         TEXT UNIQUE NOT NULL,
-        name          TEXT NOT NULL,
-        password_hash TEXT NOT NULL,
-        created_at    TEXT NOT NULL
-      )
-    `);
-    global.__jobsDb.exec(`
-      CREATE TABLE IF NOT EXISTS jobs (
-        id               TEXT PRIMARY KEY,
-        user_id          TEXT NOT NULL DEFAULT '',
-        title            TEXT NOT NULL,
-        company          TEXT NOT NULL,
-        location         TEXT,
-        salary_raw       TEXT,
-        salary_min       INTEGER,
-        salary_max       INTEGER,
-        salary_currency  TEXT,
-        salary_bands     TEXT NOT NULL DEFAULT '[]',
-        responsibilities TEXT NOT NULL DEFAULT '',
-        requirements     TEXT NOT NULL DEFAULT '',
-        status           TEXT NOT NULL DEFAULT 'applied',
-        url              TEXT,
-        notes            TEXT,
-        applied_at       TEXT NOT NULL,
-        updated_at       TEXT NOT NULL
-      )
-    `);
-
-    // Migrations for existing databases
-    try {
-      global.__jobsDb.exec(`ALTER TABLE jobs ADD COLUMN salary_bands TEXT NOT NULL DEFAULT '[]'`);
-    } catch {}
-    try {
-      global.__jobsDb.exec(`ALTER TABLE jobs ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`);
-    } catch {}
-
-    // Migrate responsibilities/requirements from JSON arrays to plain text
-    const toMigrate = global.__jobsDb
-      .prepare(`SELECT id, responsibilities, requirements FROM jobs WHERE responsibilities LIKE '[%' OR requirements LIKE '[%'`)
-      .all() as Array<{ id: string; responsibilities: string; requirements: string }>;
-
-    if (toMigrate.length > 0) {
-      const updateStmt = global.__jobsDb.prepare(
-        'UPDATE jobs SET responsibilities = ?, requirements = ? WHERE id = ?'
-      );
-      for (const row of toMigrate) {
-        let resp = row.responsibilities;
-        let reqs = row.requirements;
-        try {
-          const p = JSON.parse(resp);
-          if (Array.isArray(p)) resp = p.join('\n');
-        } catch {}
-        try {
-          const p = JSON.parse(reqs);
-          if (Array.isArray(p)) reqs = p.join('\n');
-        } catch {}
-        updateStmt.run(resp, reqs, row.id);
-      }
-    }
-  }
-  return global.__jobsDb;
+function ensureSchema(): Promise<void> {
+  if (!schemaPromise) schemaPromise = initSchema();
+  return schemaPromise;
 }
 
 // ── Row ↔ Domain mappers ────────────────────────────────────────────────────
@@ -163,73 +128,81 @@ function jobToParams(job: JobApplication, userId: string) {
 
 // ── User CRUD ────────────────────────────────────────────────────────────────
 
-export function dbCreateUser(user: {
+export async function dbCreateUser(user: {
   id: string;
   email: string;
   name: string;
   passwordHash: string;
   createdAt: string;
-}): void {
-  const db = getDb();
-  db.prepare(
-    'INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).run(user.id, user.email, user.name, user.passwordHash, user.createdAt);
+}): Promise<void> {
+  await ensureSchema();
+  await sql`
+    INSERT INTO users (id, email, name, password_hash, created_at)
+    VALUES (${user.id}, ${user.email}, ${user.name}, ${user.passwordHash}, ${user.createdAt})
+  `;
 }
 
-export function dbGetUserByEmail(email: string): UserRow | undefined {
-  const db = getDb();
-  return db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined;
+export async function dbGetUserByEmail(email: string): Promise<UserRow | undefined> {
+  await ensureSchema();
+  const { rows } = await sql<UserRow>`SELECT * FROM users WHERE email = ${email}`;
+  return rows[0];
 }
 
-export function dbGetUserById(id: string): UserRow | undefined {
-  const db = getDb();
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined;
+export async function dbGetUserById(id: string): Promise<UserRow | undefined> {
+  await ensureSchema();
+  const { rows } = await sql<UserRow>`SELECT * FROM users WHERE id = ${id}`;
+  return rows[0];
 }
 
 // ── Job CRUD (scoped by userId) ──────────────────────────────────────────────
 
-export function dbGetAllJobs(userId: string): JobApplication[] {
-  const db = getDb();
-  const rows = db
-    .prepare('SELECT * FROM jobs WHERE user_id = ? ORDER BY applied_at DESC')
-    .all(userId) as JobRow[];
+export async function dbGetAllJobs(userId: string): Promise<JobApplication[]> {
+  await ensureSchema();
+  const { rows } = await sql<JobRow>`
+    SELECT * FROM jobs WHERE user_id = ${userId} ORDER BY applied_at DESC
+  `;
   return rows.map(rowToJob);
 }
 
-export function dbGetJob(id: string, userId: string): JobApplication | undefined {
-  const db = getDb();
-  const row = db
-    .prepare('SELECT * FROM jobs WHERE id = ? AND user_id = ?')
-    .get(id, userId) as JobRow | undefined;
-  return row ? rowToJob(row) : undefined;
+export async function dbGetJob(id: string, userId: string): Promise<JobApplication | undefined> {
+  await ensureSchema();
+  const { rows } = await sql<JobRow>`
+    SELECT * FROM jobs WHERE id = ${id} AND user_id = ${userId}
+  `;
+  return rows[0] ? rowToJob(rows[0]) : undefined;
 }
 
-export function dbInsertJob(job: JobApplication, userId: string): void {
-  const db = getDb();
-  db.prepare(`
+export async function dbInsertJob(job: JobApplication, userId: string): Promise<void> {
+  await ensureSchema();
+  const p = jobToParams(job, userId);
+  await sql`
     INSERT INTO jobs
-      (id, user_id, title, company, location, salary_raw, salary_min, salary_max, salary_currency,
-       salary_bands, responsibilities, requirements, status, url, notes, applied_at, updated_at)
+      (id, user_id, title, company, location, salary_raw, salary_min, salary_max,
+       salary_currency, salary_bands, responsibilities, requirements,
+       status, url, notes, applied_at, updated_at)
     VALUES
-      (@id, @user_id, @title, @company, @location, @salary_raw, @salary_min, @salary_max, @salary_currency,
-       @salary_bands, @responsibilities, @requirements, @status, @url, @notes, @applied_at, @updated_at)
-  `).run(jobToParams(job, userId));
+      (${p.id}, ${p.user_id}, ${p.title}, ${p.company}, ${p.location},
+       ${p.salary_raw}, ${p.salary_min}, ${p.salary_max}, ${p.salary_currency},
+       ${p.salary_bands}, ${p.responsibilities}, ${p.requirements},
+       ${p.status}, ${p.url}, ${p.notes}, ${p.applied_at}, ${p.updated_at})
+  `;
 }
 
-export function dbUpdateJob(job: JobApplication, userId: string): void {
-  const db = getDb();
-  db.prepare(`
+export async function dbUpdateJob(job: JobApplication, userId: string): Promise<void> {
+  await ensureSchema();
+  const p = jobToParams(job, userId);
+  await sql`
     UPDATE jobs SET
-      title = @title, company = @company, location = @location,
-      salary_raw = @salary_raw, salary_min = @salary_min, salary_max = @salary_max,
-      salary_currency = @salary_currency, salary_bands = @salary_bands,
-      responsibilities = @responsibilities, requirements = @requirements,
-      status = @status, url = @url, notes = @notes, updated_at = @updated_at
-    WHERE id = @id AND user_id = @user_id
-  `).run(jobToParams(job, userId));
+      title = ${p.title}, company = ${p.company}, location = ${p.location},
+      salary_raw = ${p.salary_raw}, salary_min = ${p.salary_min}, salary_max = ${p.salary_max},
+      salary_currency = ${p.salary_currency}, salary_bands = ${p.salary_bands},
+      responsibilities = ${p.responsibilities}, requirements = ${p.requirements},
+      status = ${p.status}, url = ${p.url}, notes = ${p.notes}, updated_at = ${p.updated_at}
+    WHERE id = ${p.id} AND user_id = ${p.user_id}
+  `;
 }
 
-export function dbDeleteJob(id: string, userId: string): void {
-  const db = getDb();
-  db.prepare('DELETE FROM jobs WHERE id = ? AND user_id = ?').run(id, userId);
+export async function dbDeleteJob(id: string, userId: string): Promise<void> {
+  await ensureSchema();
+  await sql`DELETE FROM jobs WHERE id = ${id} AND user_id = ${userId}`;
 }

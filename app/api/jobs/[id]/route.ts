@@ -11,7 +11,7 @@ export async function GET(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const job = dbGetJob(id, session.userId);
+  const job = await dbGetJob(id, session.userId);
   if (!job) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json(job);
 }
@@ -26,7 +26,7 @@ export async function PUT(
   const { id } = await params;
   const body: JobApplication = await req.json();
   if (body.id !== id) return NextResponse.json({ error: 'ID mismatch' }, { status: 400 });
-  dbUpdateJob(body, session.userId);
+  await dbUpdateJob(body, session.userId);
   return NextResponse.json(body);
 }
 
@@ -38,6 +38,6 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  dbDeleteJob(id, session.userId);
+  await dbDeleteJob(id, session.userId);
   return new NextResponse(null, { status: 204 });
 }

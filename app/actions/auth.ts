@@ -39,13 +39,13 @@ export async function signup(prevState: AuthFormState, formData: FormData): Prom
 
   const { name, email, password } = validated.data;
 
-  if (dbGetUserByEmail(email)) {
+  if (await dbGetUserByEmail(email)) {
     return { errors: { email: ['An account with this email already exists.'] } };
   }
 
   const passwordHash = await bcryptjs.hash(password, 12);
   const id = crypto.randomUUID();
-  dbCreateUser({ id, email, name, passwordHash, createdAt: new Date().toISOString() });
+  await dbCreateUser({ id, email, name, passwordHash, createdAt: new Date().toISOString() });
   await createSession(id, name);
   redirect('/');
 }
@@ -63,7 +63,7 @@ export async function login(prevState: AuthFormState, formData: FormData): Promi
   const { email, password } = validated.data;
   const genericError = { errors: { _form: ['Invalid email or password.'] } };
 
-  const user = dbGetUserByEmail(email);
+  const user = await dbGetUserByEmail(email);
   if (!user) return genericError;
 
   const passwordMatch = await bcryptjs.compare(password, user.password_hash);
