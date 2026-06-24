@@ -223,3 +223,8 @@ export async function dbDeleteJob(id: string, userId: string): Promise<void> {
   await ensureSchema();
   await sql.query(`DELETE FROM ${JOBS} WHERE id = $1 AND user_id = $2`, [id, userId]);
 }
+
+export async function dbUpdatePassword(userId: string, passwordHash: string): Promise<void> {
+  await ensureSchema();
+  await sql.query(`UPDATE ${USERS} SET password_hash = $1 WHERE id = $2`, [passwordHash, userId]);
+}

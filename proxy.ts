@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
 // Accessible without a session
-const PUBLIC_ROUTES = ['/', '/login', '/register'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
 // Redirect authenticated users away from these back to the dashboard
 const AUTH_ONLY_PUBLIC = ['/login', '/register'];
 
