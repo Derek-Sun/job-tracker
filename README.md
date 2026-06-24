@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Job Tracker
 
-## Getting Started
+Live at [job-tracker.dereksun.net](https://job-tracker.dereksun.net).
 
-First, run the development server:
+A personal job application tracker built with Next.js. Log applications, track their status, and paste job postings for AI-assisted parsing — so you spend less time on bookkeeping and more time applying.
+
+## Features
+
+- Add and manage job applications with status tracking (applied, interviewing, offer, rejected, etc.)
+- Paste raw job posting text and let Claude parse out the role, company, location, and other details automatically
+- Email-based password reset via Resend
+- Postgres-backed storage, ready to deploy on Vercel
+
+## Setup
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Set up a Postgres database
+
+The app uses [Neon](https://neon.tech) (or any Postgres-compatible provider supported by `@vercel/postgres`). Create a database and copy the connection string.
+
+### 3. Configure environment variables
+
+Create a `.env.local` file in the project root with the following variables:
+
+```env
+# Postgres connection string from your database provider
+POSTGRES_URL=postgresql://<user>:<password>@<host>/<db>?sslmode=require
+
+# Prefix applied to all table names — use different values per environment to avoid collisions
+# e.g. "dev_" for local, "prod_" for production
+POSTGRES_TABLE_PREFIX=jt_dev_
+
+# Anthropic API key — used by the Claude parser to extract job details from pasted text
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Resend API key — used to send password reset emails
+RESEND_API_KEY=re_...
+
+# The "from" address used in outgoing emails
+EMAIL_FROM=JobTracker <noreply@yourdomain.com>
+
+# Public URL of the app — used to construct links in emails
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Secret used to sign session cookies — generate with: openssl rand -base64 32
+SESSION_SECRET=<random-base64-string>
+```
+
+### 4. Run the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The app is designed to deploy on [Vercel](https://vercel.com). Set the environment variables above in your Vercel project settings, using a production Postgres URL and a separate `POSTGRES_TABLE_PREFIX` (e.g. `jt_prod_`) to keep production and dev data isolated.
