@@ -1,8 +1,18 @@
 # Job Tracker
 
-Live demo at [job-tracker.dereksun.net](https://job-tracker.dereksun.net).
+> A simple tool for keeping track of job applications. Paste a job posting and Claude will pull out the details; otherwise just fill things in manually.
 
-A personal job application tracker built with Next.js. Log applications, track their status, and paste job postings for AI-assisted parsing — so you spend less time on bookkeeping and more time applying.
+Live demo: [job-tracker.dereksun.net](https://job-tracker.dereksun.net)
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | [Next.js](https://nextjs.org) (App Router) |
+| Database | [Postgres](https://www.postgresql.org) via [@vercel/postgres](https://vercel.com/docs/storage/vercel-postgres) / [Neon](https://neon.tech) |
+| AI Parsing | [Claude](https://anthropic.com) (Anthropic API) |
+| Email | [Resend](https://resend.com) |
+| Deployment | [Vercel](https://vercel.com) |
 
 ## Features
 
