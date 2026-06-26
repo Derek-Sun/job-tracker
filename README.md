@@ -1,6 +1,8 @@
 # Job Tracker
 
-> A simple tool for keeping track of job applications. Paste a job posting and Claude will pull out the details; otherwise just fill things in manually.
+## Description
+
+A simple tool for keeping track of job applications. Paste a job posting and Claude will pull out the details; otherwise just fill things in manually.
 
 Live demo: [job-tracker.dereksun.net](https://job-tracker.dereksun.net)
 
