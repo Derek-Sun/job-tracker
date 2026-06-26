@@ -1,6 +1,6 @@
 # Job Tracker
 
-Live at [job-tracker.dereksun.net](https://job-tracker.dereksun.net).
+Live demo at [job-tracker.dereksun.net](https://job-tracker.dereksun.net).
 
 A personal job application tracker built with Next.js. Log applications, track their status, and paste job postings for AI-assisted parsing — so you spend less time on bookkeeping and more time applying.
 
