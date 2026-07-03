@@ -6,7 +6,7 @@ import type { JobApplication, JobStatus } from '@/lib/types';
 import { STATUS_LABELS, STATUS_DOT } from '@/lib/types';
 import { formatDate, formatSalary } from '@/lib/utils';
 import { StatusBadge } from './StatusBadge';
-import { Trash2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Check } from 'lucide-react';
+import { Trash2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Check, Search, X } from 'lucide-react';
 
 type SortKey = 'company' | 'title' | 'status' | 'appliedAt';
 
@@ -27,8 +27,19 @@ export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
   const [sortAsc, setSortAsc] = useState(false);
   const [filter, setFilter] = useState<JobStatus | 'all'>('all');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
-  const filtered = filter === 'all' ? jobs : jobs.filter(j => j.status === filter);
+  const filtered = jobs
+    .filter(j => filter === 'all' || j.status === filter)
+    .filter(j => {
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      return (
+        j.title.toLowerCase().includes(q) ||
+        j.company.toLowerCase().includes(q) ||
+        (j.location?.toLowerCase() ?? '').includes(q)
+      );
+    });
 
   const sorted = [...filtered].sort((a, b) => {
     let cmp = 0;
@@ -56,6 +67,26 @@ export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Search bar */}
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by title, company, or location…"
+          className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-9 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-600"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
       {/* Filter tabs */}
       <div className="flex flex-wrap items-center gap-1.5">
         {ALL_STATUSES.map(s => {
@@ -83,7 +114,7 @@ export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         {sorted.length === 0 ? (
           <div className="py-16 text-center text-sm text-slate-400">
-            No jobs match this filter.
+            {search.trim() ? 'No jobs match your search.' : 'No jobs match this filter.'}
           </div>
         ) : (
           <table className="min-w-full divide-y divide-slate-100 text-sm">
