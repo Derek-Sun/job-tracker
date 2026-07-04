@@ -78,6 +78,11 @@ function LoginForm() {
           )}
         </div>
 
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" name="rememberMe" className="rounded border-slate-300" />
+          Remember me for 3 days
+        </label>
+
         <SubmitButton />
       </form>
     </>

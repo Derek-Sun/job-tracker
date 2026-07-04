@@ -1,23 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
+import { encrypt, decrypt, REMEMBERED_SESSION_SECONDS } from '@/lib/session-shared';
 
 // Accessible without a session
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
 // Redirect authenticated users away from these back to the dashboard
 const AUTH_ONLY_PUBLIC = ['/login', '/register'];
-
-async function verifySession(token: string): Promise<boolean> {
-  try {
-    const secret = process.env.SESSION_SECRET;
-    if (!secret) return false;
-    const key = new TextEncoder().encode(secret);
-    await jwtVerify(token, key, { algorithms: ['HS256'] });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -28,17 +16,35 @@ export async function proxy(request: NextRequest) {
   }
 
   const token = request.cookies.get('session')?.value;
-  const authenticated = token ? await verifySession(token) : false;
+  const session = token ? await decrypt(token) : null;
+  const authenticated = session !== null;
+
+  let response: NextResponse;
 
   if (!authenticated && !PUBLIC_ROUTES.includes(pathname)) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    response = NextResponse.redirect(new URL('/login', request.url));
+  } else if (authenticated && AUTH_ONLY_PUBLIC.includes(pathname)) {
+    response = NextResponse.redirect(new URL('/', request.url));
+  } else {
+    response = NextResponse.next();
   }
 
-  if (authenticated && AUTH_ONLY_PUBLIC.includes(pathname)) {
-    return NextResponse.redirect(new URL('/', request.url));
+  // Sliding refresh: remembered sessions get their 3-day window reset on every visit
+  if (session?.remember) {
+    const freshToken = await encrypt(
+      { userId: session.userId, name: session.name, remember: true },
+      `${REMEMBERED_SESSION_SECONDS}s`
+    );
+    response.cookies.set('session', freshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: REMEMBERED_SESSION_SECONDS,
+    });
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

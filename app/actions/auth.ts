@@ -71,7 +71,8 @@ export async function login(prevState: AuthFormState, formData: FormData): Promi
   const passwordMatch = await bcryptjs.compare(password, user.password_hash);
   if (!passwordMatch) return genericError;
 
-  await createSession(user.id, user.name);
+  const remember = formData.get('rememberMe') === 'on';
+  await createSession(user.id, user.name, remember);
   redirect('/');
 }
 
