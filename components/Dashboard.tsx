@@ -39,7 +39,7 @@ export function Dashboard() {
     await updateJob(updated);
   }
 
-  const active   = jobs.filter(j => ['applied', 'phone_screen', 'interview'].includes(j.status)).length;
+  const active   = jobs.filter(j => ['applied', 'interview'].includes(j.status)).length;
   const offers   = jobs.filter(j => j.status === 'offer').length;
   const rejected = jobs.filter(j => j.status === 'rejected').length;
 

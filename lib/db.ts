@@ -42,6 +42,11 @@ async function initSchema(): Promise<void> {
       updated_at       TEXT NOT NULL
     )
   `);
+  // Status set was simplified from 7 values down to 4 — remap rows from any prior
+  // deploy onto the closest surviving status. No-op once already migrated.
+  await sql.query(`UPDATE ${JOBS} SET status = 'applied' WHERE status = 'saved'`);
+  await sql.query(`UPDATE ${JOBS} SET status = 'interview' WHERE status = 'phone_screen'`);
+  await sql.query(`UPDATE ${JOBS} SET status = 'rejected' WHERE status = 'withdrawn'`);
 }
 
 function ensureSchema(): Promise<void> {
