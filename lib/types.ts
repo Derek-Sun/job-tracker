@@ -44,6 +44,10 @@ export interface ParsedJob {
   description: string;
 }
 
+export const STATUS_ORDER: JobStatus[] = [
+  'saved', 'applied', 'phone_screen', 'interview', 'offer', 'rejected', 'withdrawn',
+];
+
 export const STATUS_LABELS: Record<JobStatus, string> = {
   saved: 'Saved',
   applied: 'Applied',

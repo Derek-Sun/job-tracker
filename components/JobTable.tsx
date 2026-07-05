@@ -3,16 +3,12 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import type { JobApplication, JobStatus } from '@/lib/types';
-import { STATUS_LABELS, STATUS_DOT } from '@/lib/types';
+import { STATUS_LABELS, STATUS_DOT, STATUS_ORDER } from '@/lib/types';
 import { formatDate, formatSalary } from '@/lib/utils';
 import { StatusBadge } from './StatusBadge';
 import { Trash2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Check, Search, X } from 'lucide-react';
 
 type SortKey = 'company' | 'title' | 'status' | 'appliedAt';
-
-const STATUS_ORDER: JobStatus[] = [
-  'saved', 'applied', 'phone_screen', 'interview', 'offer', 'rejected', 'withdrawn',
-];
 
 const ALL_STATUSES: (JobStatus | 'all')[] = ['all', ...STATUS_ORDER];
 

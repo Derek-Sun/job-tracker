@@ -4,16 +4,27 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getAllJobs, deleteJob, updateJob } from '@/lib/storage';
 import { JobTable } from '@/components/JobTable';
+import { JobBoard } from '@/components/JobBoard';
 import { ExportButton } from '@/components/ExportButton';
 import type { JobApplication, JobStatus } from '@/lib/types';
-import { Plus, Briefcase, TrendingUp, Trophy, XCircle } from 'lucide-react';
+import { Plus, Briefcase, TrendingUp, Trophy, XCircle, Table2, LayoutGrid } from 'lucide-react';
+
+const VIEW_STORAGE_KEY = 'jobTracker:view';
 
 export function Dashboard() {
   const [jobs, setJobs] = useState<JobApplication[]>([]);
+  const [view, setView] = useState<'table' | 'board'>('table');
 
   useEffect(() => {
     getAllJobs().then(setJobs);
+    const saved = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (saved === 'table' || saved === 'board') setView(saved);
   }, []);
+
+  function changeView(v: 'table' | 'board') {
+    setView(v);
+    localStorage.setItem(VIEW_STORAGE_KEY, v);
+  }
 
   async function handleDelete(id: string) {
     await deleteJob(id);
@@ -54,13 +65,39 @@ export function Dashboard() {
         <EmptyState />
       ) : (
         <>
-          <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <StatCard label="Total"    value={jobs.length} icon={<Briefcase size={16} />} color="slate" />
-            <StatCard label="Active"   value={active}      icon={<TrendingUp size={16} />} color="indigo" />
-            <StatCard label="Offers"   value={offers}      icon={<Trophy size={16} />}     color="emerald" />
-            <StatCard label="Rejected" value={rejected}    icon={<XCircle size={16} />}    color="rose" />
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+            <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
+              <StatCard label="Total"    value={jobs.length} icon={<Briefcase size={16} />} color="slate" />
+              <StatCard label="Active"   value={active}      icon={<TrendingUp size={16} />} color="indigo" />
+              <StatCard label="Offers"   value={offers}      icon={<Trophy size={16} />}     color="emerald" />
+              <StatCard label="Rejected" value={rejected}    icon={<XCircle size={16} />}    color="rose" />
+            </div>
+            <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5">
+              <button
+                onClick={() => changeView('table')}
+                title="Table view"
+                className={`rounded-md p-1.5 transition-colors ${
+                  view === 'table' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <Table2 size={15} />
+              </button>
+              <button
+                onClick={() => changeView('board')}
+                title="Board view"
+                className={`rounded-md p-1.5 transition-colors ${
+                  view === 'board' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <LayoutGrid size={15} />
+              </button>
+            </div>
           </div>
-          <JobTable jobs={jobs} onDelete={handleDelete} onStatusChange={handleStatusChange} />
+          {view === 'table' ? (
+            <JobTable jobs={jobs} onDelete={handleDelete} onStatusChange={handleStatusChange} />
+          ) : (
+            <JobBoard jobs={jobs} onDelete={handleDelete} onStatusChange={handleStatusChange} />
+          )}
         </>
       )}
     </div>
