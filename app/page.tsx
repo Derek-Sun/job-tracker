@@ -1,12 +1,45 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { getSession } from '@/lib/session';
+import { dbGetAllJobs } from '@/lib/db';
 import { Dashboard } from '@/components/Dashboard';
 import { ArrowRight, Briefcase, Zap, DollarSign, FileText } from 'lucide-react';
 
 export default async function Page() {
   const session = await getSession();
-  if (session) return <Dashboard />;
+  if (session) {
+    return (
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardData userId={session.userId} />
+      </Suspense>
+    );
+  }
   return <LandingPage />;
+}
+
+async function DashboardData({ userId }: { userId: string }) {
+  const jobs = await dbGetAllJobs(userId);
+  return <Dashboard initialJobs={jobs} />;
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="mx-auto max-w-6xl animate-pulse px-4 py-8 sm:px-6">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Applications</h1>
+          <p className="mt-0.5 text-sm text-slate-500">Track and manage your job search</p>
+        </div>
+        <div className="h-9 w-28 rounded-lg bg-slate-200" />
+      </div>
+      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="h-[110px] rounded-xl border border-slate-200 bg-white shadow-sm" />
+        ))}
+      </div>
+      <div className="h-80 rounded-xl border border-slate-200 bg-white shadow-sm" />
+    </div>
+  );
 }
 
 function LandingPage() {

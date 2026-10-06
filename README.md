@@ -63,7 +63,15 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 SESSION_SECRET=<random-base64-string>
 ```
 
-### 4. Run the development server
+### 4. Create the database schema
+
+```bash
+npm run db:migrate
+```
+
+This creates the tables and indexes (using `POSTGRES_TABLE_PREFIX`). It's idempotent, and `npm run build` runs it automatically, so deploys stay up to date. Re-run it locally after pulling schema changes.
+
+### 5. Run the development server
 
 ```bash
 npm run dev

@@ -6,53 +6,7 @@ const P = process.env.POSTGRES_TABLE_PREFIX ?? '';
 const USERS = `${P}users`;
 const JOBS = `${P}jobs`;
 
-// ── Schema initialisation ────────────────────────────────────────────────────
-// Runs once per cold start; subsequent calls reuse the resolved promise.
-
-let schemaPromise: Promise<void> | null = null;
-
-async function initSchema(): Promise<void> {
-  await sql.query(`
-    CREATE TABLE IF NOT EXISTS ${USERS} (
-      id            TEXT PRIMARY KEY,
-      email         TEXT UNIQUE NOT NULL,
-      name          TEXT NOT NULL,
-      password_hash TEXT NOT NULL,
-      created_at    TEXT NOT NULL
-    )
-  `);
-  await sql.query(`
-    CREATE TABLE IF NOT EXISTS ${JOBS} (
-      id               TEXT PRIMARY KEY,
-      user_id          TEXT NOT NULL DEFAULT '',
-      title            TEXT NOT NULL,
-      company          TEXT NOT NULL,
-      location         TEXT,
-      salary_raw       TEXT,
-      salary_min       INTEGER,
-      salary_max       INTEGER,
-      salary_currency  TEXT,
-      salary_bands     TEXT NOT NULL DEFAULT '[]',
-      responsibilities TEXT NOT NULL DEFAULT '',
-      requirements     TEXT NOT NULL DEFAULT '',
-      status           TEXT NOT NULL DEFAULT 'applied',
-      url              TEXT,
-      notes            TEXT,
-      applied_at       TEXT NOT NULL,
-      updated_at       TEXT NOT NULL
-    )
-  `);
-  // Status set was simplified from 7 values down to 4 — remap rows from any prior
-  // deploy onto the closest surviving status. No-op once already migrated.
-  await sql.query(`UPDATE ${JOBS} SET status = 'applied' WHERE status = 'saved'`);
-  await sql.query(`UPDATE ${JOBS} SET status = 'interview' WHERE status = 'phone_screen'`);
-  await sql.query(`UPDATE ${JOBS} SET status = 'rejected' WHERE status = 'withdrawn'`);
-}
-
-function ensureSchema(): Promise<void> {
-  if (!schemaPromise) schemaPromise = initSchema();
-  return schemaPromise;
-}
+// Schema (tables, migrations, indexes) is managed by scripts/migrate.mjs, which runs on build.
 
 // ── Row ↔ Domain mappers ────────────────────────────────────────────────────
 
@@ -145,7 +99,6 @@ export async function dbCreateUser(user: {
   passwordHash: string;
   createdAt: string;
 }): Promise<void> {
-  await ensureSchema();
   await sql.query(
     `INSERT INTO ${USERS} (id, email, name, password_hash, created_at) VALUES ($1, $2, $3, $4, $5)`,
     [user.id, user.email, user.name, user.passwordHash, user.createdAt]
@@ -153,13 +106,11 @@ export async function dbCreateUser(user: {
 }
 
 export async function dbGetUserByEmail(email: string): Promise<UserRow | undefined> {
-  await ensureSchema();
   const { rows } = await sql.query<UserRow>(`SELECT * FROM ${USERS} WHERE email = $1`, [email]);
   return rows[0];
 }
 
 export async function dbGetUserById(id: string): Promise<UserRow | undefined> {
-  await ensureSchema();
   const { rows } = await sql.query<UserRow>(`SELECT * FROM ${USERS} WHERE id = $1`, [id]);
   return rows[0];
 }
@@ -167,7 +118,6 @@ export async function dbGetUserById(id: string): Promise<UserRow | undefined> {
 // ── Job CRUD (scoped by userId) ──────────────────────────────────────────────
 
 export async function dbGetAllJobs(userId: string): Promise<JobApplication[]> {
-  await ensureSchema();
   const { rows } = await sql.query<JobRow>(
     `SELECT * FROM ${JOBS} WHERE user_id = $1 ORDER BY applied_at DESC`,
     [userId]
@@ -176,7 +126,6 @@ export async function dbGetAllJobs(userId: string): Promise<JobApplication[]> {
 }
 
 export async function dbGetJob(id: string, userId: string): Promise<JobApplication | undefined> {
-  await ensureSchema();
   const { rows } = await sql.query<JobRow>(
     `SELECT * FROM ${JOBS} WHERE id = $1 AND user_id = $2`,
     [id, userId]
@@ -185,7 +134,6 @@ export async function dbGetJob(id: string, userId: string): Promise<JobApplicati
 }
 
 export async function dbInsertJob(job: JobApplication, userId: string): Promise<void> {
-  await ensureSchema();
   const p = jobToParams(job, userId);
   await sql.query(
     `INSERT INTO ${JOBS}
@@ -203,7 +151,6 @@ export async function dbInsertJob(job: JobApplication, userId: string): Promise<
 }
 
 export async function dbUpdateJob(job: JobApplication, userId: string): Promise<void> {
-  await ensureSchema();
   const p = jobToParams(job, userId);
   await sql.query(
     `UPDATE ${JOBS} SET
@@ -225,11 +172,9 @@ export async function dbUpdateJob(job: JobApplication, userId: string): Promise<
 }
 
 export async function dbDeleteJob(id: string, userId: string): Promise<void> {
-  await ensureSchema();
   await sql.query(`DELETE FROM ${JOBS} WHERE id = $1 AND user_id = $2`, [id, userId]);
 }
 
 export async function dbUpdatePassword(userId: string, passwordHash: string): Promise<void> {
-  await ensureSchema();
   await sql.query(`UPDATE ${USERS} SET password_hash = $1 WHERE id = $2`, [passwordHash, userId]);
 }

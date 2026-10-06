@@ -11,12 +11,11 @@ import { Plus, Briefcase, TrendingUp, Trophy, XCircle, Table2, LayoutGrid } from
 
 const VIEW_STORAGE_KEY = 'jobTracker:view';
 
-export function Dashboard() {
-  const [jobs, setJobs] = useState<JobApplication[]>([]);
+export function Dashboard({ initialJobs }: { initialJobs: JobApplication[] }) {
+  const [jobs, setJobs] = useState(initialJobs);
   const [view, setView] = useState<'table' | 'board'>('table');
 
   useEffect(() => {
-    getAllJobs().then(setJobs);
     const saved = localStorage.getItem(VIEW_STORAGE_KEY);
     if (saved === 'table' || saved === 'board') setView(saved);
   }, []);
