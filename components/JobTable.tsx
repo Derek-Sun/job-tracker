@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { JobApplication, JobStatus } from '@/lib/types';
 import { STATUS_LABELS, STATUS_DOT, STATUS_ORDER } from '@/lib/types';
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
+  const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>('appliedAt');
   const [sortAsc, setSortAsc] = useState(false);
   const [filter, setFilter] = useState<JobStatus | 'all'>('all');
@@ -52,6 +54,16 @@ export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(v => !v);
     else { setSortKey(key); setSortAsc(true); }
+  }
+
+  // Whole row opens the job. Clicks on the row's own links/buttons keep their behaviour,
+  // and a click that ends a text selection doesn't navigate.
+  function handleRowClick(e: React.MouseEvent, id: string) {
+    if ((e.target as Element).closest('a, button')) return;
+    if (window.getSelection()?.toString()) return;
+    const href = `/jobs/${id}`;
+    if (e.metaKey || e.ctrlKey || e.button === 1) window.open(href, '_blank');
+    else router.push(href);
   }
 
   function SortIcon({ col }: { col: SortKey }) {
@@ -147,14 +159,19 @@ export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {sorted.map(job => (
-                <tr key={job.id} className="group hover:bg-slate-50 transition-colors">
+                <tr
+                  key={job.id}
+                  onClick={e => handleRowClick(e, job.id)}
+                  onAuxClick={e => e.button === 1 && handleRowClick(e, job.id)}
+                  className="group cursor-pointer hover:bg-slate-50 transition-colors"
+                >
                   <td className="px-4 py-3.5 font-medium text-slate-800 whitespace-nowrap">
                     {job.company || <span className="italic text-slate-400">Unknown</span>}
                   </td>
                   <td className="px-4 py-3.5 max-w-xs">
                     <Link
                       href={`/jobs/${job.id}`}
-                      className="font-medium text-slate-900 hover:text-indigo-600 transition-colors line-clamp-1"
+                      className="font-medium text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1"
                     >
                       {job.title}
                     </Link>
@@ -182,7 +199,11 @@ export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
                           {/* backdrop */}
                           <div
                             className="fixed inset-0 z-10"
-                            onClick={() => setOpenId(null)}
+                            onClick={e => {
+                              // Don't let closing the menu bubble up and open the job
+                              e.stopPropagation();
+                              setOpenId(null);
+                            }}
                           />
                           {/* menu */}
                           <div className="absolute left-0 top-full z-20 mt-1.5 min-w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
