@@ -3,18 +3,20 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { getJob, updateJob, deleteJob } from '@/lib/storage';
+import { getJob, updateJob, deleteJob, listResumes, resumeFileUrl } from '@/lib/storage';
 import { JobForm } from '@/components/JobForm';
 import { StatusBadge } from '@/components/StatusBadge';
 import type { JobApplication } from '@/lib/types';
 import { formatDate, formatSalary } from '@/lib/utils';
 import { ArrowLeft, Pencil, Trash2, ExternalLink, X, DollarSign, FileText, StickyNote } from 'lucide-react';
+import type { ResumeFile } from '@/lib/types';
 
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [job, setJob]         = useState<JobApplication | null>(null);
   const [editing, setEditing] = useState(false);
+  const [resume, setResume]   = useState<ResumeFile | null>(null);
 
   useEffect(() => {
     getJob(id).then(found => {
@@ -22,6 +24,14 @@ export default function JobDetailPage() {
       else setJob(found);
     });
   }, [id, router]);
+
+  const resumeId = job?.resumeId;
+  useEffect(() => {
+    if (!resumeId) { setResume(null); return; }
+    listResumes()
+      .then(list => setResume(list.find(r => r.id === resumeId) ?? null))
+      .catch(() => setResume(null));
+  }, [resumeId]);
 
   if (!job) {
     return (
@@ -70,6 +80,16 @@ export default function JobDetailPage() {
               Applied {formatDate(job.appliedAt)}
               {job.updatedAt !== job.appliedAt && <> · Updated {formatDate(job.updatedAt)}</>}
             </p>
+            {resume && (
+              <a
+                href={resumeFileUrl(resume.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                <FileText size={12} /> Resume: {resume.label}
+              </a>
+            )}
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">

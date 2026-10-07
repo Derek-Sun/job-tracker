@@ -1,10 +1,11 @@
 import { sql } from '@vercel/postgres';
-import type { JobApplication, SalaryBand } from './types';
+import type { JobApplication, ResumeFile, SalaryBand } from './types';
 
 // Table names — prefix is set per environment via POSTGRES_TABLE_PREFIX (e.g. "jt_", "dev_")
 const P = process.env.POSTGRES_TABLE_PREFIX ?? '';
 const USERS = `${P}users`;
 const JOBS = `${P}jobs`;
+const RESUME_FILES = `${P}resume_files`;
 
 // Schema (tables, migrations, indexes) is managed by scripts/migrate.mjs, which runs on build.
 
@@ -26,6 +27,7 @@ interface JobRow {
   status: string;
   url: string | null;
   notes: string | null;
+  resume_id: string | null;
   applied_at: string;
   updated_at: string;
 }
@@ -63,6 +65,7 @@ function rowToJob(row: JobRow): JobApplication {
     status: row.status as JobApplication['status'],
     url: row.url ?? undefined,
     notes: row.notes ?? undefined,
+    resumeId: row.resume_id ?? undefined,
     appliedAt: row.applied_at,
     updatedAt: row.updated_at,
   };
@@ -85,6 +88,7 @@ function jobToParams(job: JobApplication, userId: string) {
     status: job.status,
     url: job.url ?? null,
     notes: job.notes ?? null,
+    resume_id: job.resumeId ?? null,
     applied_at: job.appliedAt,
     updated_at: job.updatedAt,
   };
@@ -139,13 +143,13 @@ export async function dbInsertJob(job: JobApplication, userId: string): Promise<
     `INSERT INTO ${JOBS}
       (id, user_id, title, company, location, salary_raw, salary_min, salary_max,
        salary_currency, salary_bands, responsibilities, requirements,
-       status, url, notes, applied_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+       status, url, notes, resume_id, applied_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
     [
       p.id, p.user_id, p.title, p.company, p.location,
       p.salary_raw, p.salary_min, p.salary_max, p.salary_currency,
       p.salary_bands, p.responsibilities, p.requirements,
-      p.status, p.url, p.notes, p.applied_at, p.updated_at,
+      p.status, p.url, p.notes, p.resume_id, p.applied_at, p.updated_at,
     ]
   );
 }
@@ -158,14 +162,14 @@ export async function dbUpdateJob(job: JobApplication, userId: string): Promise<
       salary_raw=$4, salary_min=$5, salary_max=$6,
       salary_currency=$7, salary_bands=$8,
       responsibilities=$9, requirements=$10,
-      status=$11, url=$12, notes=$13, updated_at=$14
-     WHERE id=$15 AND user_id=$16`,
+      status=$11, url=$12, notes=$13, resume_id=$14, updated_at=$15
+     WHERE id=$16 AND user_id=$17`,
     [
       p.title, p.company, p.location,
       p.salary_raw, p.salary_min, p.salary_max,
       p.salary_currency, p.salary_bands,
       p.responsibilities, p.requirements,
-      p.status, p.url, p.notes, p.updated_at,
+      p.status, p.url, p.notes, p.resume_id, p.updated_at,
       p.id, p.user_id,
     ]
   );
@@ -177,4 +181,88 @@ export async function dbDeleteJob(id: string, userId: string): Promise<void> {
 
 export async function dbUpdatePassword(userId: string, passwordHash: string): Promise<void> {
   await sql.query(`UPDATE ${USERS} SET password_hash = $1 WHERE id = $2`, [passwordHash, userId]);
+}
+
+// ── Resume files (scoped by userId) ──────────────────────────────────────────
+
+export async function dbListResumeFiles(userId: string): Promise<ResumeFile[]> {
+  const { rows } = await sql.query<{
+    id: string; label: string; filename: string; size: number; uploaded_at: string; job_count: string;
+  }>(
+    `SELECT r.id, r.label, r.filename, r.size, r.uploaded_at, COUNT(j.id) AS job_count
+       FROM ${RESUME_FILES} r
+       LEFT JOIN ${JOBS} j ON j.resume_id = r.id
+      WHERE r.user_id = $1
+      GROUP BY r.id
+      ORDER BY r.uploaded_at DESC`,
+    [userId]
+  );
+  return rows.map(r => ({
+    id: r.id,
+    label: r.label,
+    filename: r.filename,
+    size: r.size,
+    uploadedAt: r.uploaded_at,
+    jobCount: Number(r.job_count),
+  }));
+}
+
+export async function dbGetResumeFile(
+  id: string,
+  userId: string
+): Promise<{ filename: string; data: Buffer } | undefined> {
+  const { rows } = await sql.query<{ filename: string; data: Buffer }>(
+    `SELECT filename, data FROM ${RESUME_FILES} WHERE id = $1 AND user_id = $2`,
+    [id, userId]
+  );
+  return rows[0];
+}
+
+export async function dbResumeFileExists(id: string, userId: string): Promise<boolean> {
+  const { rows } = await sql.query(`SELECT 1 FROM ${RESUME_FILES} WHERE id = $1 AND user_id = $2`, [id, userId]);
+  return rows.length > 0;
+}
+
+export async function dbInsertResumeFile(file: {
+  id: string;
+  userId: string;
+  label: string;
+  filename: string;
+  data: Buffer;
+  uploadedAt: string;
+}): Promise<void> {
+  await sql.query(
+    `INSERT INTO ${RESUME_FILES} (id, user_id, label, filename, size, data, uploaded_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [file.id, file.userId, file.label, file.filename, file.data.length, file.data, file.uploadedAt]
+  );
+}
+
+export async function dbRenameResumeFile(id: string, userId: string, label: string): Promise<boolean> {
+  const { rowCount } = await sql.query(
+    `UPDATE ${RESUME_FILES} SET label = $1 WHERE id = $2 AND user_id = $3`,
+    [label, id, userId]
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+/** Refuses while any job records this resume, so the history of what was sent stays intact. */
+export async function dbDeleteResumeFile(
+  id: string,
+  userId: string
+): Promise<{ status: 'deleted' | 'not_found' } | { status: 'in_use'; jobCount: number }> {
+  const { rows } = await sql.query<{ job_count: string }>(
+    `SELECT COUNT(j.id) AS job_count
+       FROM ${RESUME_FILES} r
+       LEFT JOIN ${JOBS} j ON j.resume_id = r.id
+      WHERE r.id = $1 AND r.user_id = $2
+      GROUP BY r.id`,
+    [id, userId]
+  );
+  if (!rows[0]) return { status: 'not_found' };
+  const jobCount = Number(rows[0].job_count);
+  if (jobCount > 0) return { status: 'in_use', jobCount };
+
+  await sql.query(`DELETE FROM ${RESUME_FILES} WHERE id = $1 AND user_id = $2`, [id, userId]);
+  return { status: 'deleted' };
 }

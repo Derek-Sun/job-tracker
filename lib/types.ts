@@ -29,9 +29,24 @@ export interface JobApplication {
   status: JobStatus;
   url?: string;
   notes?: string;
+  /** Uploaded resume recorded as the one sent for this job */
+  resumeId?: string;
   appliedAt: string;
   updatedAt: string;
 }
+
+export interface ResumeFile {
+  id: string;
+  label: string;
+  filename: string;
+  size: number;
+  uploadedAt: string;
+  /** Number of jobs recording this resume as the one sent */
+  jobCount: number;
+}
+
+// Vercel rejects request bodies over 4.5 MB; leave room for the multipart envelope
+export const MAX_RESUME_BYTES = 4 * 1024 * 1024;
 
 export interface ParsedJob {
   title: string;

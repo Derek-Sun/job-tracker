@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { JobApplication, JobStatus, Salary, SalaryBand } from '@/lib/types';
 import { STATUS_LABELS } from '@/lib/types';
+import { ResumePicker } from '@/components/ResumePicker';
 import { Plus, X, Sparkles, Loader2 } from 'lucide-react';
 
 const ALL_STATUSES = Object.keys(STATUS_LABELS) as JobStatus[];
@@ -33,6 +34,7 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
   );
   const [description, setDescription] = useState(initial.description ?? '');
   const [notes, setNotes] = useState(initial.notes ?? '');
+  const [resumeId, setResumeId] = useState<string | undefined>(initial.resumeId);
   const [saving, setSaving]   = useState(false);
   const [parsing, setParsing] = useState(false);
 
@@ -69,7 +71,7 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
         }
       : undefined;
 
-    await onSave({ title, company, location, url, status, salary, description, notes });
+    await onSave({ title, company, location, url, status, salary, description, notes, resumeId });
     setSaving(false);
   }
 
@@ -95,6 +97,9 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
           </Field>
           <Field label="Job Posting URL" className="sm:col-span-2">
             <input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..." className={input} />
+          </Field>
+          <Field label="Resume used" className="sm:col-span-2">
+            <ResumePicker value={resumeId} onChange={setResumeId} className={input} />
           </Field>
         </div>
       </FormSection>

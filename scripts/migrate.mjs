@@ -11,6 +11,7 @@ if (!process.env.POSTGRES_URL) {
 const P = process.env.POSTGRES_TABLE_PREFIX ?? '';
 const USERS = `${P}users`;
 const JOBS = `${P}jobs`;
+const RESUME_FILES = `${P}resume_files`;
 
 const steps = [
   [`create ${USERS}`, `
@@ -50,6 +51,23 @@ const steps = [
   ['remap status withdrawn → rejected', `UPDATE ${JOBS} SET status = 'rejected' WHERE status = 'withdrawn'`],
   // Backs dbGetAllJobs: WHERE user_id = $1 ORDER BY applied_at DESC
   [`index ${JOBS}(user_id, applied_at)`, `CREATE INDEX IF NOT EXISTS ${JOBS}_user_applied_idx ON ${JOBS} (user_id, applied_at DESC)`],
+  // Uploaded resume PDFs; jobs record which one was sent
+  [`create ${RESUME_FILES}`, `
+    CREATE TABLE IF NOT EXISTS ${RESUME_FILES} (
+      id          TEXT PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      label       TEXT NOT NULL,
+      filename    TEXT NOT NULL,
+      size        INTEGER NOT NULL,
+      data        BYTEA NOT NULL,
+      uploaded_at TEXT NOT NULL
+    )
+  `],
+  [`index ${RESUME_FILES}(user_id)`, `CREATE INDEX IF NOT EXISTS ${RESUME_FILES}_user_idx ON ${RESUME_FILES} (user_id)`],
+  // RESTRICT: a resume can't be deleted while a job records it as the one sent
+  [`add ${JOBS}.resume_id`, `ALTER TABLE ${JOBS} ADD COLUMN IF NOT EXISTS resume_id TEXT REFERENCES ${RESUME_FILES}(id) ON DELETE RESTRICT`],
+  // Pasted-text resume (dev only, never deployed) replaced by uploads
+  [`drop ${P}resumes`, `DROP TABLE IF EXISTS ${P}resumes`],
 ];
 
 for (const [label, query] of steps) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { getAllJobs } from '@/lib/storage';
+import { getAllJobs, listResumes } from '@/lib/storage';
 import { jobsToCsv } from '@/lib/utils';
 import { Download } from 'lucide-react';
 
@@ -21,8 +21,9 @@ export function ExportButton() {
   }
 
   async function exportCsv() {
-    const jobs = await getAllJobs();
-    download(jobsToCsv(jobs), 'job-applications.csv', 'text/csv');
+    const [jobs, resumes] = await Promise.all([getAllJobs(), listResumes()]);
+    const labels = new Map(resumes.map(r => [r.id, r.label]));
+    download(jobsToCsv(jobs, labels), 'job-applications.csv', 'text/csv');
   }
 
   return (

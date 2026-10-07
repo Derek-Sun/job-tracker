@@ -28,11 +28,18 @@ export function formatSalary(salary?: Salary): string {
   return salary.raw || '—';
 }
 
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function cn(...classes: (string | undefined | false | null)[]): string {
   return classes.filter(Boolean).join(' ');
 }
 
-export function jobsToCsv(jobs: JobApplication[]): string {
+/** resumeLabels maps resume IDs to their names for the Resume column */
+export function jobsToCsv(jobs: JobApplication[], resumeLabels: Map<string, string> = new Map()): string {
   const headers = [
     'Title',
     'Company',
@@ -43,6 +50,7 @@ export function jobsToCsv(jobs: JobApplication[]): string {
     'URL',
     'Description',
     'Notes',
+    'Resume',
   ];
   const rows = jobs.map((j) => [
     j.title,
@@ -54,6 +62,7 @@ export function jobsToCsv(jobs: JobApplication[]): string {
     j.url ?? '',
     j.description,
     j.notes ?? '',
+    j.resumeId ? resumeLabels.get(j.resumeId) ?? '' : '',
   ]);
   return [headers, ...rows]
     .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))

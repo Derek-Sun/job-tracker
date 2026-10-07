@@ -70,6 +70,7 @@ export default function NewJobPage() {
       status: fields.status ?? 'applied',
       url: fields.url,
       notes: fields.notes,
+      resumeId: fields.resumeId,
       appliedAt: now,
       updatedAt: now,
     });

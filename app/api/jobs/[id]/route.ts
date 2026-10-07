@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbGetJob, dbUpdateJob, dbDeleteJob } from '@/lib/db';
+import { dbGetJob, dbUpdateJob, dbDeleteJob, dbResumeFileExists } from '@/lib/db';
 import { getSession } from '@/lib/session';
 import type { JobApplication } from '@/lib/types';
 
@@ -26,6 +26,9 @@ export async function PUT(
   const { id } = await params;
   const body: JobApplication = await req.json();
   if (body.id !== id) return NextResponse.json({ error: 'ID mismatch' }, { status: 400 });
+  if (body.resumeId && !(await dbResumeFileExists(body.resumeId, session.userId))) {
+    return NextResponse.json({ error: 'Resume not found' }, { status: 400 });
+  }
   await dbUpdateJob(body, session.userId);
   return NextResponse.json(body);
 }

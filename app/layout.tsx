@@ -47,6 +47,9 @@ export default async function RootLayout({
             </Link>
             {session ? (
               <div className="flex items-center gap-3">
+                <Link href="/resumes" className="text-sm text-slate-500 hover:text-slate-900 transition-colors">
+                  Resumes
+                </Link>
                 <span className="text-sm text-slate-600">{session.name}</span>
                 <form action={logout}>
                   <button
