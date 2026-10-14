@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { listResumes, resumeFileUrl, uploadResume } from '@/lib/storage';
-import { MAX_RESUME_BYTES, type ResumeFile } from '@/lib/types';
+import { MAX_RESUME_BYTES, RESUME_TOO_LARGE, type ResumeFile } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { ExternalLink, Loader2 } from 'lucide-react';
 
@@ -34,7 +34,7 @@ export function ResumePicker({ value, onChange, className }: Props) {
   async function handleFile(file: File | undefined) {
     if (fileInput.current) fileInput.current.value = '';
     if (!file) return;
-    if (file.size > MAX_RESUME_BYTES) { setError('That PDF is over the 4 MB limit'); return; }
+    if (file.size > MAX_RESUME_BYTES) { setError(RESUME_TOO_LARGE); return; }
     setUploading(true);
     setError('');
     try {

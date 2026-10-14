@@ -1,15 +1,8 @@
-import type { JobApplication, ResumeFile } from './types';
+import type { JobApplication, ParsedJob, ResumeFile } from './types';
 
 export async function getAllJobs(): Promise<JobApplication[]> {
   const res = await fetch('/api/jobs');
   if (!res.ok) throw new Error('Failed to load jobs');
-  return res.json();
-}
-
-export async function getJob(id: string): Promise<JobApplication | undefined> {
-  const res = await fetch(`/api/jobs/${id}`);
-  if (res.status === 404) return undefined;
-  if (!res.ok) throw new Error('Failed to load job');
   return res.json();
 }
 
@@ -39,6 +32,24 @@ export async function deleteJob(id: string): Promise<void> {
 async function errorMessage(res: Response, fallback: string): Promise<string> {
   const body = await res.json().catch(() => null);
   return typeof body?.error === 'string' ? body.error : fallback;
+}
+
+async function postJson<T>(url: string, body: unknown, fallback: string): Promise<T> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await errorMessage(res, fallback));
+  return res.json();
+}
+
+export function fetchJobFromUrl(url: string): Promise<ParsedJob> {
+  return postJson('/api/fetch-job', { url }, 'Failed to fetch page');
+}
+
+export function parseJobText(text: string): Promise<ParsedJob> {
+  return postJson('/api/parse-job', { text }, 'Failed to parse description');
 }
 
 export async function listResumes(): Promise<ResumeFile[]> {

@@ -47,6 +47,7 @@ export interface ResumeFile {
 
 // Vercel rejects request bodies over 4.5 MB; leave room for the multipart envelope
 export const MAX_RESUME_BYTES = 4 * 1024 * 1024;
+export const RESUME_TOO_LARGE = 'That PDF is over the 4 MB limit';
 
 export interface ParsedJob {
   title: string;

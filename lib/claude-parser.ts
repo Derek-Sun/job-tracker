@@ -112,18 +112,15 @@ export async function parseWithClaude(text: string, hints?: ParseHints): Promise
 
   let salary: Salary | undefined;
   if (input.salary) {
-    const bands: SalaryBand[] | undefined = input.salary.bands?.map((b) => ({
-      label: b.label,
-      min: b.min,
-      max: b.max,
-      currency: b.currency ?? 'USD',
-    }));
+    const bands: SalaryBand[] | undefined = input.salary.bands?.length
+      ? input.salary.bands.map((b) => ({ label: b.label, min: b.min, max: b.max, currency: b.currency ?? 'USD' }))
+      : undefined;
     salary = {
       raw: input.salary.raw,
-      min: input.salary.min ?? (bands && bands.length > 0 ? Math.min(...bands.map((b) => b.min)) : undefined),
-      max: input.salary.max ?? (bands && bands.length > 0 ? Math.max(...bands.map((b) => b.max)) : undefined),
+      min: input.salary.min ?? (bands && Math.min(...bands.map((b) => b.min))),
+      max: input.salary.max ?? (bands && Math.max(...bands.map((b) => b.max))),
       currency: input.salary.currency ?? 'USD',
-      bands: bands && bands.length > 0 ? bands : undefined,
+      bands,
     };
   }
 

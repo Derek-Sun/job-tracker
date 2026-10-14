@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import type { JobApplication, JobStatus, Salary, SalaryBand } from '@/lib/types';
-import { STATUS_LABELS } from '@/lib/types';
+import { STATUS_LABELS, STATUS_ORDER } from '@/lib/types';
+import { INPUT } from '@/lib/styles';
+import { cn } from '@/lib/utils';
 import { ResumePicker } from '@/components/ResumePicker';
 import { Plus, X, Sparkles, Loader2 } from 'lucide-react';
-
-const ALL_STATUSES = Object.keys(STATUS_LABELS) as JobStatus[];
 
 interface Props {
   initial: Partial<JobApplication>;
@@ -15,8 +15,7 @@ interface Props {
   submitLabel?: string;
 }
 
-const input = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-colors';
-const inputSm = 'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-colors';
+const input = cn(INPUT, 'w-full');
 
 interface BandEntry { label: string; min: string; max: string }
 
@@ -92,7 +91,7 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
           </Field>
           <Field label="Status">
             <select value={status} onChange={e => setStatus(e.target.value as JobStatus)} className={input}>
-              {ALL_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+              {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
             </select>
           </Field>
           <Field label="Job Posting URL" className="sm:col-span-2">
@@ -129,21 +128,21 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
                     value={band.label}
                     onChange={e => updateBand(i, 'label', e.target.value)}
                     placeholder="Level (e.g. Associate)"
-                    className={`${inputSm} flex-1`}
+                    className={cn(INPUT, 'flex-1')}
                   />
                   <input
                     type="number"
                     value={band.min}
                     onChange={e => updateBand(i, 'min', e.target.value)}
                     placeholder="Min"
-                    className={`${inputSm} w-28`}
+                    className={cn(INPUT, 'w-28')}
                   />
                   <input
                     type="number"
                     value={band.max}
                     onChange={e => updateBand(i, 'max', e.target.value)}
                     placeholder="Max"
-                    className={`${inputSm} w-28`}
+                    className={cn(INPUT, 'w-28')}
                   />
                   <button
                     type="button"

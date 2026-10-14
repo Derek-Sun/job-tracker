@@ -71,6 +71,7 @@ function rowToJob(row: JobRow): JobApplication {
   };
 }
 
+// Keys are column names. The description lives in `responsibilities`; `requirements` is legacy.
 function jobToParams(job: JobApplication, userId: string) {
   return {
     id: job.id,
@@ -139,39 +140,21 @@ export async function dbGetJob(id: string, userId: string): Promise<JobApplicati
 
 export async function dbInsertJob(job: JobApplication, userId: string): Promise<void> {
   const p = jobToParams(job, userId);
+  const cols = Object.keys(p);
   await sql.query(
-    `INSERT INTO ${JOBS}
-      (id, user_id, title, company, location, salary_raw, salary_min, salary_max,
-       salary_currency, salary_bands, responsibilities, requirements,
-       status, url, notes, resume_id, applied_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
-    [
-      p.id, p.user_id, p.title, p.company, p.location,
-      p.salary_raw, p.salary_min, p.salary_max, p.salary_currency,
-      p.salary_bands, p.responsibilities, p.requirements,
-      p.status, p.url, p.notes, p.resume_id, p.applied_at, p.updated_at,
-    ]
+    `INSERT INTO ${JOBS} (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
+    Object.values(p)
   );
 }
 
 export async function dbUpdateJob(job: JobApplication, userId: string): Promise<void> {
-  const p = jobToParams(job, userId);
+  const { id, user_id, applied_at: _, ...fields } = jobToParams(job, userId);
+  const cols = Object.keys(fields);
+  const n = cols.length;
   await sql.query(
-    `UPDATE ${JOBS} SET
-      title=$1, company=$2, location=$3,
-      salary_raw=$4, salary_min=$5, salary_max=$6,
-      salary_currency=$7, salary_bands=$8,
-      responsibilities=$9, requirements=$10,
-      status=$11, url=$12, notes=$13, resume_id=$14, updated_at=$15
-     WHERE id=$16 AND user_id=$17`,
-    [
-      p.title, p.company, p.location,
-      p.salary_raw, p.salary_min, p.salary_max,
-      p.salary_currency, p.salary_bands,
-      p.responsibilities, p.requirements,
-      p.status, p.url, p.notes, p.resume_id, p.updated_at,
-      p.id, p.user_id,
-    ]
+    `UPDATE ${JOBS} SET ${cols.map((c, i) => `${c} = $${i + 1}`).join(', ')}
+     WHERE id = $${n + 1} AND user_id = $${n + 2}`,
+    [...Object.values(fields), id, user_id]
   );
 }
 
@@ -213,6 +196,17 @@ export async function dbGetResumeFile(
 ): Promise<{ filename: string; data: Buffer } | undefined> {
   const { rows } = await sql.query<{ filename: string; data: Buffer }>(
     `SELECT filename, data FROM ${RESUME_FILES} WHERE id = $1 AND user_id = $2`,
+    [id, userId]
+  );
+  return rows[0];
+}
+
+export async function dbGetResumeLabel(
+  id: string,
+  userId: string
+): Promise<{ id: string; label: string } | undefined> {
+  const { rows } = await sql.query<{ id: string; label: string }>(
+    `SELECT id, label FROM ${RESUME_FILES} WHERE id = $1 AND user_id = $2`,
     [id, userId]
   );
   return rows[0];

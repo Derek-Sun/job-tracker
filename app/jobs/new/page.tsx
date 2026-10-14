@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { JobForm } from '@/components/JobForm';
-import { saveJob } from '@/lib/storage';
+import { BackLink } from '@/components/BackLink';
+import { fetchJobFromUrl, parseJobText, saveJob } from '@/lib/storage';
+import { INPUT } from '@/lib/styles';
 import type { JobApplication, ParsedJob } from '@/lib/types';
-import { newId } from '@/lib/utils';
-import { ArrowLeft, Link2, Loader2 } from 'lucide-react';
+import { cn, newId } from '@/lib/utils';
+import { Link2, Loader2 } from 'lucide-react';
 
 export default function NewJobPage() {
   const router = useRouter();
@@ -15,77 +16,61 @@ export default function NewJobPage() {
   const [fetchError, setFetchError] = useState('');
   const [fetching, setFetching]     = useState(false);
   const [parsed, setParsed]         = useState<Partial<JobApplication> | null>(null);
+  // Bumped on every parse so JobForm remounts with the new initial values
+  const [formKey, setFormKey]       = useState(0);
 
   function applyParsed(result: ParsedJob, sourceUrl?: string) {
     setParsed({
-      title: result.title,
-      company: result.company,
-      location: result.location,
-      salary: result.salary,
-      description: result.description,
+      ...result,
       status: parsed?.status ?? 'applied',
       url: sourceUrl ?? parsed?.url,
     });
+    setFormKey(k => k + 1);
   }
 
   async function handleFetchUrl() {
-    if (!jobUrl.trim()) return;
+    const url = jobUrl.trim();
+    if (!url) return;
     setFetchError('');
     setFetching(true);
     try {
-      const res = await fetch('/api/fetch-job', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: jobUrl.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setFetchError(data.error ?? 'Failed to fetch page'); return; }
-      applyParsed(data, jobUrl.trim());
-    } catch {
-      setFetchError('Network error — could not reach the server');
+      applyParsed(await fetchJobFromUrl(url), url);
+    } catch (err) {
+      // fetch() itself throws TypeError when the server is unreachable
+      setFetchError(
+        err instanceof Error && !(err instanceof TypeError)
+          ? err.message
+          : 'Network error — could not reach the server'
+      );
     } finally {
       setFetching(false);
     }
   }
 
   async function handleParse(text: string) {
-    const res = await fetch('/api/parse-job', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    const data = await res.json();
-    if (res.ok) applyParsed(data);
+    applyParsed(await parseJobText(text));
   }
 
   async function handleSave(fields: Partial<JobApplication>) {
     const now = new Date().toISOString();
     await saveJob({
+      title: '',
+      company: '',
+      description: '',
+      status: 'applied',
+      ...fields,
       id: newId(),
-      title: fields.title ?? '',
-      company: fields.company ?? '',
-      location: fields.location,
-      salary: fields.salary,
-      description: fields.description ?? '',
-      status: fields.status ?? 'applied',
-      url: fields.url,
-      notes: fields.notes,
-      resumeId: fields.resumeId,
       appliedAt: now,
       updatedAt: now,
     });
     router.push('/');
   }
 
-  const inputCls = 'flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-colors';
-
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
       {/* Header */}
       <div className="mb-8">
-        <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors">
-          <ArrowLeft size={14} /> Back
-        </Link>
+        <BackLink />
         <h1 className="mt-4 text-2xl font-bold text-slate-900">Add Application</h1>
       </div>
 
@@ -99,7 +84,7 @@ export default function NewJobPage() {
             onChange={e => { setJobUrl(e.target.value); setFetchError(''); }}
             onKeyDown={e => e.key === 'Enter' && handleFetchUrl()}
             placeholder="https://jobs.company.com/posting/…"
-            className={inputCls}
+            className={cn(INPUT, 'flex-1')}
           />
           <button
             onClick={handleFetchUrl}
@@ -117,9 +102,8 @@ export default function NewJobPage() {
         </p>
       </div>
 
-      {/* key forces JobForm to remount when parsed data changes */}
       <JobForm
-        key={parsed ? JSON.stringify({ t: parsed.title, c: parsed.company, d: (parsed.description ?? '').slice(0, 30) }) : 'empty'}
+        key={formKey}
         initial={parsed ?? { status: 'applied' }}
         onSave={handleSave}
         onParse={handleParse}

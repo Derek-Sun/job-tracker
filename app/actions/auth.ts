@@ -8,19 +8,27 @@ import { createSession, deleteSession } from '@/lib/session';
 import { dbCreateUser, dbGetUserByEmail, dbGetUserById, dbUpdatePassword } from '@/lib/db';
 import { sendPasswordResetEmail } from '@/lib/email';
 
+const EmailSchema = z.string().email({ message: 'Please enter a valid email.' }).trim();
+
+const PasswordSchema = z
+  .string()
+  .min(8, { message: 'Must be at least 8 characters.' })
+  .regex(/[a-zA-Z]/, { message: 'Must contain at least one letter.' })
+  .regex(/[0-9]/, { message: 'Must contain at least one number.' })
+  .regex(/[^a-zA-Z0-9]/, { message: 'Must contain at least one special character.' });
+
+function hashPassword(password: string): Promise<string> {
+  return bcryptjs.hash(password, 12);
+}
+
 const SignupSchema = z.object({
   name: z.string().min(1, { message: 'Name is required.' }).trim(),
-  email: z.string().email({ message: 'Please enter a valid email.' }).trim(),
-  password: z
-    .string()
-    .min(8, { message: 'Must be at least 8 characters.' })
-    .regex(/[a-zA-Z]/, { message: 'Must contain at least one letter.' })
-    .regex(/[0-9]/, { message: 'Must contain at least one number.' })
-    .regex(/[^a-zA-Z0-9]/, { message: 'Must contain at least one special character.' }),
+  email: EmailSchema,
+  password: PasswordSchema,
 });
 
 const LoginSchema = z.object({
-  email: z.string().email({ message: 'Please enter a valid email.' }).trim(),
+  email: EmailSchema,
   password: z.string().min(1, { message: 'Password is required.' }),
 });
 
@@ -45,7 +53,7 @@ export async function signup(prevState: AuthFormState, formData: FormData): Prom
     return { errors: { email: ['An account with this email already exists.'] } };
   }
 
-  const passwordHash = await bcryptjs.hash(password, 12);
+  const passwordHash = await hashPassword(password);
   const id = crypto.randomUUID();
   await dbCreateUser({ id, email, name, passwordHash, createdAt: new Date().toISOString() });
   await createSession(id, name);
@@ -84,17 +92,12 @@ export async function logout(): Promise<void> {
 // ── Password reset ────────────────────────────────────────────────────────────
 
 const ForgotSchema = z.object({
-  email: z.string().email({ message: 'Please enter a valid email.' }).trim(),
+  email: EmailSchema,
 });
 
 const ResetSchema = z.object({
   token: z.string().min(1),
-  password: z
-    .string()
-    .min(8, { message: 'Must be at least 8 characters.' })
-    .regex(/[a-zA-Z]/, { message: 'Must contain at least one letter.' })
-    .regex(/[0-9]/, { message: 'Must contain at least one number.' })
-    .regex(/[^a-zA-Z0-9]/, { message: 'Must contain at least one special character.' }),
+  password: PasswordSchema,
 });
 
 export type ForgotFormState =
@@ -174,7 +177,7 @@ export async function resetPassword(
   const user = await dbGetUserById(userId);
   if (!user) return { errors: { _form: ['Account not found.'] } };
 
-  const passwordHash = await bcryptjs.hash(password, 12);
+  const passwordHash = await hashPassword(password);
   await dbUpdatePassword(userId, passwordHash);
 
   redirect('/login?reset=1');

@@ -1,14 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { dbDeleteResumeFile, dbRenameResumeFile } from '@/lib/db';
-import { getSession } from '@/lib/session';
+import { withSession } from '@/lib/api';
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+type Ctx = RouteContext<'/api/resumes/[id]'>;
 
+export const PATCH = withSession<Ctx>(async (session, req, { params }) => {
   const { id } = await params;
   const body = await req.json().catch(() => null);
   const label = typeof body?.label === 'string' ? body.label.trim() : '';
@@ -19,7 +15,7 @@ export async function PATCH(
   const found = await dbRenameResumeFile(id, session.userId, label);
   if (!found) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json({ id, label });
-}
+});
 
 function inUse(jobCount?: number) {
   const which = jobCount ? `${jobCount} job${jobCount === 1 ? '' : 's'}` : 'a job';
@@ -29,13 +25,7 @@ function inUse(jobCount?: number) {
   );
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+export const DELETE = withSession<Ctx>(async (session, _req, { params }) => {
   const { id } = await params;
   try {
     const result = await dbDeleteResumeFile(id, session.userId);
@@ -47,4 +37,4 @@ export async function DELETE(
     if ((err as { code?: string })?.code === '23503') return inUse();
     throw err;
   }
-}
+});

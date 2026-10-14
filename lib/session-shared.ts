@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 
+export const SESSION_COOKIE = 'session';
 export const REMEMBERED_SESSION_SECONDS = 60 * 60 * 24 * 3; // 3 days
 export const DEFAULT_SESSION_SECONDS = 60 * 60 * 8; // 8 hours
 
@@ -8,6 +9,17 @@ export interface SessionPayload {
   name: string;
   remember: boolean;
   [key: string]: unknown;
+}
+
+// Remembered sessions persist across browser restarts; others are browser-session cookies
+export function sessionCookieOptions(remember: boolean) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
+    ...(remember ? { maxAge: REMEMBERED_SESSION_SECONDS } : {}),
+  };
 }
 
 function getKey(): Uint8Array {

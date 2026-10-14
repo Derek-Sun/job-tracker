@@ -11,7 +11,15 @@ import { Trash2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Che
 
 type SortKey = 'company' | 'title' | 'status' | 'appliedAt';
 
-const ALL_STATUSES: (JobStatus | 'all')[] = ['all', ...STATUS_ORDER];
+const FILTERS: (JobStatus | 'all')[] = ['all', ...STATUS_ORDER];
+
+const COLUMNS: { label: string; sortKey?: SortKey }[] = [
+  { label: 'Company', sortKey: 'company' },
+  { label: 'Title', sortKey: 'title' },
+  { label: 'Status', sortKey: 'status' },
+  { label: 'Salary' },
+  { label: 'Applied', sortKey: 'appliedAt' },
+];
 
 interface Props {
   jobs: JobApplication[];
@@ -97,7 +105,7 @@ export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
 
       {/* Filter tabs */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {ALL_STATUSES.map(s => {
+        {FILTERS.map(s => {
           const count = s === 'all' ? jobs.length : jobs.filter(j => j.status === s).length;
           if (count === 0 && s !== 'all') return null;
           const active = filter === s;
@@ -128,32 +136,21 @@ export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
           <table className="min-w-full divide-y divide-slate-100 text-sm">
             <thead>
               <tr className="bg-slate-50">
-                {([
-                  ['company', 'Company'],
-                  ['title', 'Title'],
-                  ['status', 'Status'],
-                ] as [SortKey, string][]).map(([key, label]) => (
+                {COLUMNS.map(({ label, sortKey: key }) => (
                   <th
-                    key={key}
-                    onClick={() => toggleSort(key)}
-                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 cursor-pointer select-none hover:text-slate-700"
+                    key={label}
+                    onClick={key && (() => toggleSort(key))}
+                    className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 ${
+                      key ? 'cursor-pointer select-none hover:text-slate-700' : ''
+                    }`}
                   >
-                    <span className="inline-flex items-center gap-1.5">
-                      {label} <SortIcon col={key} />
-                    </span>
+                    {key ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        {label} <SortIcon col={key} />
+                      </span>
+                    ) : label}
                   </th>
                 ))}
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Salary
-                </th>
-                <th
-                  onClick={() => toggleSort('appliedAt')}
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 cursor-pointer select-none hover:text-slate-700"
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    Applied <SortIcon col="appliedAt" />
-                  </span>
-                </th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>

@@ -1,108 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/session';
+import { NextResponse } from 'next/server';
+import { withSession } from '@/lib/api';
 import { parseWithClaude } from '@/lib/claude-parser';
+import { extractJsonLd, htmlToText, jsonLdLocation } from '@/lib/html';
 
 const BLOCKED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
 
 function isBlockedUrl(url: URL): boolean {
-  return BLOCKED_HOSTS.some((h) => url.hostname === h) || url.hostname.endsWith('.internal');
+  return BLOCKED_HOSTS.includes(url.hostname) || url.hostname.endsWith('.internal');
 }
 
-function htmlToText(html: string): string {
-  let text = html
-    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
-    .replace(/<style\b[\s\S]*?<\/style>/gi, '')
-    .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<nav\b[\s\S]*?<\/nav>/gi, '')
-    .replace(/<header\b[\s\S]*?<\/header>/gi, '')
-    .replace(/<footer\b[\s\S]*?<\/footer>/gi, '')
-    .replace(/<aside\b[\s\S]*?<\/aside>/gi, '');
-
-  const mainMatch = text.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i);
-  const articleMatch = text.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
-  if (mainMatch) text = mainMatch[0];
-  else if (articleMatch) text = articleMatch[0];
-
-  text = text.replace(/<\/(p|div|section|article|li|h[1-6]|tr|td|th|ul|ol)\b[^>]*>/gi, '\n');
-  text = text.replace(/<(br|hr)\b[^>]*\/?>/gi, '\n');
-  text = text.replace(/<[^>]+>/g, '');
-
-  text = text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&#8211;|&ndash;/g, '–')
-    .replace(/&#8212;|&mdash;/g, '—')
-    .replace(/&#8226;|&bull;/g, '•')
-    .replace(/&#x27;/g, "'")
-    .replace(/&#\d+;/g, ' ')
-    .replace(/&[a-z]+;/gi, ' ');
-
-  return text
-    .split('\n')
-    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
-interface JsonLdAddress {
-  addressLocality?: string;
-  addressRegion?: string;
-  addressCountry?: string;
-}
-
-interface JsonLdJobPosting {
-  '@type': string;
-  title?: string;
-  hiringOrganization?: { name?: string };
-  jobLocation?: Array<{ address?: JsonLdAddress }> | { address?: JsonLdAddress };
-  description?: string;
-}
-
-function extractJsonLd(html: string): JsonLdJobPosting | null {
-  const re = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    try {
-      const data: unknown = JSON.parse(m[1]);
-      const candidates = Array.isArray(data) ? data : [data];
-      for (const item of candidates) {
-        if (item && typeof item === 'object') {
-          const obj = item as Record<string, unknown>;
-          if (obj['@type'] === 'JobPosting') return obj as unknown as JsonLdJobPosting;
-          if (Array.isArray(obj['@graph'])) {
-            const found = (obj['@graph'] as unknown[]).find(
-              (g) => g && typeof g === 'object' && (g as Record<string, unknown>)['@type'] === 'JobPosting'
-            );
-            if (found) return found as unknown as JsonLdJobPosting;
-          }
-        }
-      }
-    } catch {
-      // malformed JSON — try the next script block
-    }
-  }
-  return null;
-}
-
-function jsonLdLocation(posting: JsonLdJobPosting): string {
-  const loc = Array.isArray(posting.jobLocation) ? posting.jobLocation[0] : posting.jobLocation;
-  const addr = loc?.address;
-  if (!addr) return '';
-  const region =
-    addr.addressRegion && addr.addressRegion.length > 2 ? addr.addressRegion : addr.addressRegion ?? '';
-  return [addr.addressLocality, region].filter(Boolean).join(', ');
-}
-
-export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+export const POST = withSession(async (_session, req) => {
   let url: URL;
   try {
     const body = await req.json();
@@ -143,14 +50,10 @@ export async function POST(req: NextRequest) {
 
     const html = await res.text();
 
+    // Prefer the structured description when it's substantial; fall back to the whole page
     const jsonLd = extractJsonLd(html);
-    let text: string;
-    if (jsonLd) {
-      const descText = jsonLd.description ? htmlToText(jsonLd.description) : '';
-      text = descText.length >= 50 ? descText : htmlToText(html);
-    } else {
-      text = htmlToText(html);
-    }
+    const descText = jsonLd?.description ? htmlToText(jsonLd.description) : '';
+    const text = descText.length >= 50 ? descText : htmlToText(html);
 
     if (text.length < 50) {
       return NextResponse.json({ error: 'Could not extract readable text from page' }, { status: 422 });
@@ -164,8 +67,7 @@ export async function POST(req: NextRequest) {
         }
       : undefined;
 
-    const parsed = await parseWithClaude(text, hints);
-    return NextResponse.json(parsed);
+    return NextResponse.json(await parseWithClaude(text, hints));
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Fetch failed';
     if (msg.includes('timeout') || msg.includes('TimeoutError')) {
@@ -173,4 +75,4 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: `Could not fetch URL: ${msg}` }, { status: 502 });
   }
-}
+});

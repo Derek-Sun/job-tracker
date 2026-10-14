@@ -1,11 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/session';
+import { NextResponse } from 'next/server';
+import { withSession } from '@/lib/api';
 import { parseWithClaude } from '@/lib/claude-parser';
 
-export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+export const POST = withSession(async (_session, req) => {
   let text: string;
   try {
     const body = await req.json();
@@ -19,10 +16,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const parsed = await parseWithClaude(text);
-    return NextResponse.json(parsed);
+    return NextResponse.json(await parseWithClaude(text));
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Parse failed';
     return NextResponse.json({ error: msg }, { status: 500 });
   }
-}
+});

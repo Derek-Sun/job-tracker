@@ -1,28 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { dbGetJob, dbUpdateJob, dbDeleteJob, dbResumeFileExists } from '@/lib/db';
-import { getSession } from '@/lib/session';
+import { NextResponse } from 'next/server';
+import { dbUpdateJob, dbDeleteJob, dbResumeFileExists } from '@/lib/db';
+import { withSession } from '@/lib/api';
 import type { JobApplication } from '@/lib/types';
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+type Ctx = RouteContext<'/api/jobs/[id]'>;
 
-  const { id } = await params;
-  const job = await dbGetJob(id, session.userId);
-  if (!job) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json(job);
-}
-
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+export const PUT = withSession<Ctx>(async (session, req, { params }) => {
   const { id } = await params;
   const body: JobApplication = await req.json();
   if (body.id !== id) return NextResponse.json({ error: 'ID mismatch' }, { status: 400 });
@@ -31,16 +14,10 @@ export async function PUT(
   }
   await dbUpdateJob(body, session.userId);
   return NextResponse.json(body);
-}
+});
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+export const DELETE = withSession<Ctx>(async (session, _req, { params }) => {
   const { id } = await params;
   await dbDeleteJob(id, session.userId);
   return new NextResponse(null, { status: 204 });
-}
+});

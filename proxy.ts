@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { encrypt, decrypt, REMEMBERED_SESSION_SECONDS } from '@/lib/session-shared';
+import {
+  encrypt,
+  decrypt,
+  sessionCookieOptions,
+  SESSION_COOKIE,
+  REMEMBERED_SESSION_SECONDS,
+} from '@/lib/session-shared';
 
 // Accessible without a session
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
@@ -15,7 +21,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = request.cookies.get('session')?.value;
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = token ? await decrypt(token) : null;
   const authenticated = session !== null;
 
@@ -35,13 +41,7 @@ export async function proxy(request: NextRequest) {
       { userId: session.userId, name: session.name, remember: true },
       `${REMEMBERED_SESSION_SECONDS}s`
     );
-    response.cookies.set('session', freshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: REMEMBERED_SESSION_SECONDS,
-    });
+    response.cookies.set(SESSION_COOKIE, freshToken, sessionCookieOptions(true));
   }
 
   return response;

@@ -1,20 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { dbInsertResumeFile, dbListResumeFiles } from '@/lib/db';
-import { getSession } from '@/lib/session';
-import { MAX_RESUME_BYTES, type ResumeFile } from '@/lib/types';
+import { withSession } from '@/lib/api';
+import { MAX_RESUME_BYTES, RESUME_TOO_LARGE, type ResumeFile } from '@/lib/types';
 import { newId } from '@/lib/utils';
 
-export async function GET() {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+export const GET = withSession(async (session) => {
   return NextResponse.json(await dbListResumeFiles(session.userId));
-}
+});
 
-export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+export const POST = withSession(async (session, req) => {
   let form: FormData;
   try {
     form = await req.formData();
@@ -27,7 +21,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Choose a PDF to upload' }, { status: 400 });
   }
   if (file.size > MAX_RESUME_BYTES) {
-    return NextResponse.json({ error: 'PDF is too large (4 MB max)' }, { status: 400 });
+    return NextResponse.json({ error: RESUME_TOO_LARGE }, { status: 400 });
   }
 
   const data = Buffer.from(await file.arrayBuffer());
@@ -50,4 +44,4 @@ export async function POST(req: NextRequest) {
   };
   await dbInsertResumeFile({ ...resume, userId: session.userId, data });
   return NextResponse.json(resume, { status: 201 });
-}
+});

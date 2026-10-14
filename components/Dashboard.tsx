@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getAllJobs, deleteJob, updateJob } from '@/lib/storage';
+import { deleteJob, updateJob } from '@/lib/storage';
 import { JobTable } from '@/components/JobTable';
 import { JobBoard } from '@/components/JobBoard';
 import { ExportButton } from '@/components/ExportButton';
@@ -11,23 +11,30 @@ import { Plus, Briefcase, TrendingUp, Trophy, XCircle, Table2, LayoutGrid } from
 
 const VIEW_STORAGE_KEY = 'jobTracker:view';
 
+type View = 'table' | 'board';
+
+const VIEWS = [
+  { view: 'table', Icon: Table2, title: 'Table view' },
+  { view: 'board', Icon: LayoutGrid, title: 'Board view' },
+] as const;
+
 export function Dashboard({ initialJobs }: { initialJobs: JobApplication[] }) {
   const [jobs, setJobs] = useState(initialJobs);
-  const [view, setView] = useState<'table' | 'board'>('table');
+  const [view, setView] = useState<View>('table');
 
   useEffect(() => {
     const saved = localStorage.getItem(VIEW_STORAGE_KEY);
     if (saved === 'table' || saved === 'board') setView(saved);
   }, []);
 
-  function changeView(v: 'table' | 'board') {
+  function changeView(v: View) {
     setView(v);
     localStorage.setItem(VIEW_STORAGE_KEY, v);
   }
 
   async function handleDelete(id: string) {
     await deleteJob(id);
-    getAllJobs().then(setJobs);
+    setJobs(prev => prev.filter(j => j.id !== id));
   }
 
   async function handleStatusChange(id: string, status: JobStatus) {
@@ -72,24 +79,18 @@ export function Dashboard({ initialJobs }: { initialJobs: JobApplication[] }) {
               <StatCard label="Rejected" value={rejected}    icon={<XCircle size={16} />}    color="rose" />
             </div>
             <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5">
-              <button
-                onClick={() => changeView('table')}
-                title="Table view"
-                className={`rounded-md p-1.5 transition-colors ${
-                  view === 'table' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'
-                }`}
-              >
-                <Table2 size={15} />
-              </button>
-              <button
-                onClick={() => changeView('board')}
-                title="Board view"
-                className={`rounded-md p-1.5 transition-colors ${
-                  view === 'board' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'
-                }`}
-              >
-                <LayoutGrid size={15} />
-              </button>
+              {VIEWS.map(({ view: v, Icon, title }) => (
+                <button
+                  key={v}
+                  onClick={() => changeView(v)}
+                  title={title}
+                  className={`rounded-md p-1.5 transition-colors ${
+                    view === v ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  <Icon size={15} />
+                </button>
+              ))}
             </div>
           </div>
           {view === 'table' ? (

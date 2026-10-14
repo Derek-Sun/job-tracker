@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { deleteResume, listResumes, renameResume, resumeFileUrl, uploadResume } from '@/lib/storage';
-import { MAX_RESUME_BYTES, type ResumeFile } from '@/lib/types';
-import { formatDate, formatFileSize } from '@/lib/utils';
-import { ArrowLeft, Check, ExternalLink, FileText, Loader2, Pencil, Trash2, Upload, X } from 'lucide-react';
+import { MAX_RESUME_BYTES, RESUME_TOO_LARGE, type ResumeFile } from '@/lib/types';
+import { INPUT } from '@/lib/styles';
+import { BackLink } from '@/components/BackLink';
+import { cn, formatDate, formatFileSize } from '@/lib/utils';
+import { Check, ExternalLink, FileText, Loader2, Pencil, Trash2, Upload, X } from 'lucide-react';
 
-const input = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-colors';
+const input = cn(INPUT, 'w-full');
 const smallBtn = 'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40 disabled:hover:bg-transparent transition-colors';
 
 export default function ResumesPage() {
@@ -20,9 +21,7 @@ export default function ResumesPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-      <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors">
-        <ArrowLeft size={14} /> Back
-      </Link>
+      <BackLink />
 
       <h1 className="mt-5 text-2xl font-bold text-slate-900">Resumes</h1>
       <p className="mt-0.5 text-sm text-slate-500">
@@ -65,7 +64,7 @@ function UploadCard({ onUploaded }: { onUploaded: (r: ResumeFile) => void }) {
   function choose(f: File | null) {
     setError('');
     setFile(f);
-    if (f && f.size > MAX_RESUME_BYTES) setError('That PDF is over the 4 MB limit');
+    if (f && f.size > MAX_RESUME_BYTES) setError(RESUME_TOO_LARGE);
   }
 
   async function handleUpload(e: React.FormEvent) {

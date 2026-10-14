@@ -12,19 +12,18 @@ export function formatDate(iso: string): string {
   });
 }
 
+function formatK(n: number): string {
+  return n >= 1000 ? `$${(n / 1000).toFixed(0)}k` : `$${n}`;
+}
+
 export function formatSalary(salary?: Salary): string {
   if (!salary) return '—';
   if (salary.bands && salary.bands.length > 0) {
-    const mins = salary.bands.map(b => b.min);
-    const maxs = salary.bands.map(b => b.max);
-    const fmt = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(0)}k` : `$${n}`;
-    return `${fmt(Math.min(...mins))} – ${fmt(Math.max(...maxs))}`;
+    const min = Math.min(...salary.bands.map(b => b.min));
+    const max = Math.max(...salary.bands.map(b => b.max));
+    return `${formatK(min)} – ${formatK(max)}`;
   }
-  if (salary.min && salary.max) {
-    const fmt = (n: number) =>
-      n >= 1000 ? `$${(n / 1000).toFixed(0)}k` : `$${n}`;
-    return `${fmt(salary.min)} – ${fmt(salary.max)}`;
-  }
+  if (salary.min && salary.max) return `${formatK(salary.min)} – ${formatK(salary.max)}`;
   return salary.raw || '—';
 }
 
