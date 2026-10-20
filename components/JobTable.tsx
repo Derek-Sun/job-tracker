@@ -22,6 +22,7 @@ const COLUMNS: { label: string; sortKey?: SortKey }[] = [
   { label: 'Status', sortKey: 'status' },
   { label: 'Salary' },
   { label: 'Applied', sortKey: 'appliedAt' },
+  { label: 'Last Activity' },
 ];
 
 interface Props {
@@ -266,6 +267,9 @@ export function JobTable({ jobs, onDelete, onStatusChange, onInterviewStageChang
                   </td>
                   <td className="px-4 py-3.5 text-slate-400 whitespace-nowrap tabular-nums text-sm">
                     {formatDate(job.appliedAt)}
+                  </td>
+                  <td className="px-4 py-3.5 text-slate-400 whitespace-nowrap tabular-nums text-sm">
+                    {formatDate(job.lastActivityAt ?? job.updatedAt)}
                   </td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

@@ -2,26 +2,61 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateJob, deleteJob, resumeFileUrl } from '@/lib/storage';
+import { updateJob, deleteJob, resumeFileUrl, addLogEntry } from '@/lib/storage';
 import { JobForm } from '@/components/JobForm';
 import { StatusBadge } from '@/components/StatusBadge';
 import { InterviewStagePicker } from '@/components/InterviewStagePicker';
+import { ActivityLog } from '@/components/ActivityLog';
 import { BackLink } from '@/components/BackLink';
-import type { JobApplication, ResumeFile, InterviewStage } from '@/lib/types';
+import type { JobApplication, ResumeFile, InterviewStage, ActivityLogEntry } from '@/lib/types';
+import { STATUS_LABELS, INTERVIEW_STAGE_LABELS } from '@/lib/types';
 import { formatDate, formatSalary } from '@/lib/utils';
-import { Pencil, Trash2, ExternalLink, X, DollarSign, FileText, StickyNote } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink, X, DollarSign, FileText } from 'lucide-react';
 
-export function JobDetail({ job, resume }: {
+export function JobDetail({ job, resume, logEntries }: {
   job: JobApplication;
   resume?: Pick<ResumeFile, 'id' | 'label'>;
+  logEntries: ActivityLogEntry[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [, startTransition] = useTransition();
 
   async function handleSave(fields: Partial<JobApplication>) {
-    await updateJob({ ...job, ...fields, updatedAt: new Date().toISOString() });
-    // Re-render from the server; the form stays up until the fresh job arrives
+    const now = new Date().toISOString();
+    await updateJob({ ...job, ...fields, updatedAt: now });
+
+    if (fields.status && fields.status !== job.status) {
+      const entry: ActivityLogEntry = {
+        id: crypto.randomUUID(),
+        jobId: job.id,
+        type: 'status_change',
+        content: `${STATUS_LABELS[job.status]} → ${STATUS_LABELS[fields.status]}`,
+        fromStatus: job.status,
+        toStatus: fields.status,
+        fromStage: job.interviewStage,
+        toStage: fields.status === 'interview' ? fields.interviewStage : undefined,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await addLogEntry(job.id, entry).catch(() => {});
+    } else if (fields.interviewStage && fields.interviewStage !== job.interviewStage) {
+      const fromStageLabel = job.interviewStage ? INTERVIEW_STAGE_LABELS[job.interviewStage] : 'None';
+      const entry: ActivityLogEntry = {
+        id: crypto.randomUUID(),
+        jobId: job.id,
+        type: 'status_change',
+        content: `Interview stage: ${fromStageLabel} → ${INTERVIEW_STAGE_LABELS[fields.interviewStage]}`,
+        fromStatus: job.status,
+        toStatus: job.status,
+        fromStage: job.interviewStage,
+        toStage: fields.interviewStage,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await addLogEntry(job.id, entry).catch(() => {});
+    }
+
     startTransition(() => {
       router.refresh();
       setEditing(false);
@@ -29,7 +64,22 @@ export function JobDetail({ job, resume }: {
   }
 
   async function handleStageChange(stage: InterviewStage) {
-    await updateJob({ ...job, interviewStage: stage, updatedAt: new Date().toISOString() });
+    const now = new Date().toISOString();
+    await updateJob({ ...job, interviewStage: stage, updatedAt: now });
+    const fromStageLabel = job.interviewStage ? INTERVIEW_STAGE_LABELS[job.interviewStage] : 'None';
+    const entry: ActivityLogEntry = {
+      id: crypto.randomUUID(),
+      jobId: job.id,
+      type: 'status_change',
+      content: `Interview stage: ${fromStageLabel} → ${INTERVIEW_STAGE_LABELS[stage]}`,
+      fromStatus: job.status,
+      toStatus: job.status,
+      fromStage: job.interviewStage,
+      toStage: stage,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await addLogEntry(job.id, entry).catch(() => {});
     startTransition(() => router.refresh());
   }
 
@@ -41,9 +91,7 @@ export function JobDetail({ job, resume }: {
   }
 
   const hasBands = (job.salary?.bands?.length ?? 0) > 0;
-  // With a single salary figure, Notes sits beside it; otherwise it goes below the description
-  const notesBesideSalary = !!job.salary && !!job.notes && !hasBands;
-  const hasDetails = job.salary || job.description?.trim() || job.notes;
+  const hasDetails = job.salary || job.description?.trim();
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
@@ -118,53 +166,40 @@ export function JobDetail({ job, resume }: {
         ) : (
           <div className="space-y-4">
             {job.salary && (
-              <div className={`grid gap-4 ${notesBesideSalary ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
-                <DetailCard icon={<DollarSign size={14} />} title="Salary">
-                  {hasBands ? (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr>
-                          <th className="pb-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Level</th>
-                          <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Min</th>
-                          <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Max</th>
+              <DetailCard icon={<DollarSign size={14} />} title="Salary">
+                {hasBands ? (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr>
+                        <th className="pb-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Level</th>
+                        <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Min</th>
+                        <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Max</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {job.salary.bands!.map((band, i) => (
+                        <tr key={i}>
+                          <td className="py-2 font-medium text-slate-800">{band.label}</td>
+                          <td className="py-2 text-right tabular-nums text-slate-600">{fmtBand(band.min)}</td>
+                          <td className="py-2 text-right tabular-nums text-slate-600">{fmtBand(band.max)}</td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {job.salary.bands!.map((band, i) => (
-                          <tr key={i}>
-                            <td className="py-2 font-medium text-slate-800">{band.label}</td>
-                            <td className="py-2 text-right tabular-nums text-slate-600">{fmtBand(band.min)}</td>
-                            <td className="py-2 text-right tabular-nums text-slate-600">{fmtBand(band.max)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <>
-                      <p className="text-lg font-semibold text-slate-900">{formatSalary(job.salary)}</p>
-                      {job.salary.raw && job.salary.raw !== formatSalary(job.salary) && (
-                        <p className="mt-0.5 text-xs text-slate-400">Listed as: {job.salary.raw}</p>
-                      )}
-                    </>
-                  )}
-                </DetailCard>
-                {notesBesideSalary && (
-                  <DetailCard icon={<StickyNote size={14} />} title="Notes">
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{job.notes}</p>
-                  </DetailCard>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <>
+                    <p className="text-lg font-semibold text-slate-900">{formatSalary(job.salary)}</p>
+                    {job.salary.raw && job.salary.raw !== formatSalary(job.salary) && (
+                      <p className="mt-0.5 text-xs text-slate-400">Listed as: {job.salary.raw}</p>
+                    )}
+                  </>
                 )}
-              </div>
+              </DetailCard>
             )}
 
             {job.description?.trim() && (
               <DetailCard icon={<FileText size={14} />} title="Job Description">
                 <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{job.description}</p>
-              </DetailCard>
-            )}
-
-            {job.notes && !notesBesideSalary && (
-              <DetailCard icon={<StickyNote size={14} />} title="Notes">
-                <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{job.notes}</p>
               </DetailCard>
             )}
 
@@ -181,6 +216,11 @@ export function JobDetail({ job, resume }: {
             )}
           </div>
         )}
+      </div>
+
+      {/* Activity log — always visible */}
+      <div className="mt-4">
+        <ActivityLog jobId={job.id} initialEntries={logEntries} />
       </div>
     </div>
   );

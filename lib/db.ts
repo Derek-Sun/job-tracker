@@ -1,11 +1,12 @@
 import { sql } from '@vercel/postgres';
-import type { JobApplication, InterviewStage, ResumeFile, SalaryBand } from './types';
+import type { JobApplication, InterviewStage, JobStatus, LogEntryType, ActivityLogEntry, ResumeFile, SalaryBand } from './types';
 
 // Table names — prefix is set per environment via POSTGRES_TABLE_PREFIX (e.g. "jt_", "dev_")
 const P = process.env.POSTGRES_TABLE_PREFIX ?? '';
 const USERS = `${P}users`;
 const JOBS = `${P}jobs`;
 const RESUME_FILES = `${P}resume_files`;
+const ACTIVITY_LOG = `${P}activity_log`;
 
 // Schema (tables, migrations, indexes) is managed by scripts/migrate.mjs, which runs on build.
 
@@ -30,6 +31,21 @@ interface JobRow {
   notes: string | null;
   resume_id: string | null;
   applied_at: string;
+  updated_at: string;
+  last_activity_at: string | null;
+}
+
+interface LogEntryRow {
+  id: string;
+  job_id: string;
+  user_id: string;
+  type: string;
+  content: string;
+  from_status: string | null;
+  to_status: string | null;
+  from_stage: string | null;
+  to_stage: string | null;
+  created_at: string;
   updated_at: string;
 }
 
@@ -69,6 +85,22 @@ function rowToJob(row: JobRow): JobApplication {
     notes: row.notes ?? undefined,
     resumeId: row.resume_id ?? undefined,
     appliedAt: row.applied_at,
+    updatedAt: row.updated_at,
+    lastActivityAt: row.last_activity_at ?? undefined,
+  };
+}
+
+function rowToLogEntry(row: LogEntryRow): ActivityLogEntry {
+  return {
+    id: row.id,
+    jobId: row.job_id,
+    type: row.type as LogEntryType,
+    content: row.content,
+    fromStatus: (row.from_status as JobStatus) ?? undefined,
+    toStatus: (row.to_status as JobStatus) ?? undefined,
+    fromStage: (row.from_stage as InterviewStage) ?? undefined,
+    toStage: (row.to_stage as InterviewStage) ?? undefined,
+    createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
@@ -127,7 +159,15 @@ export async function dbGetUserById(id: string): Promise<UserRow | undefined> {
 
 export async function dbGetAllJobs(userId: string): Promise<JobApplication[]> {
   const { rows } = await sql.query<JobRow>(
-    `SELECT * FROM ${JOBS} WHERE user_id = $1 ORDER BY applied_at DESC`,
+    `SELECT j.*, la.last_activity_at
+     FROM ${JOBS} j
+     LEFT JOIN (
+       SELECT job_id, MAX(created_at) AS last_activity_at
+       FROM ${ACTIVITY_LOG}
+       GROUP BY job_id
+     ) la ON la.job_id = j.id
+     WHERE j.user_id = $1
+     ORDER BY j.applied_at DESC`,
     [userId]
   );
   return rows.map(rowToJob);
@@ -239,6 +279,48 @@ export async function dbRenameResumeFile(id: string, userId: string, label: stri
   const { rowCount } = await sql.query(
     `UPDATE ${RESUME_FILES} SET label = $1 WHERE id = $2 AND user_id = $3`,
     [label, id, userId]
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+// ── Activity log (scoped by userId via JOIN) ──────────────────────────────────
+
+export async function dbGetLogEntries(jobId: string, userId: string): Promise<ActivityLogEntry[]> {
+  const { rows } = await sql.query<LogEntryRow>(
+    `SELECT al.* FROM ${ACTIVITY_LOG} al
+     JOIN ${JOBS} j ON j.id = al.job_id
+     WHERE al.job_id = $1 AND j.user_id = $2
+     ORDER BY al.created_at ASC`,
+    [jobId, userId]
+  );
+  return rows.map(rowToLogEntry);
+}
+
+export async function dbInsertLogEntry(entry: ActivityLogEntry, userId: string): Promise<void> {
+  await sql.query(
+    `INSERT INTO ${ACTIVITY_LOG} (id, job_id, user_id, type, content, from_status, to_status, from_stage, to_stage, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [entry.id, entry.jobId, userId, entry.type, entry.content,
+     entry.fromStatus ?? null, entry.toStatus ?? null,
+     entry.fromStage ?? null, entry.toStage ?? null,
+     entry.createdAt, entry.updatedAt]
+  );
+}
+
+export async function dbUpdateLogEntry(id: string, userId: string, content: string): Promise<boolean> {
+  const now = new Date().toISOString();
+  const { rowCount } = await sql.query(
+    `UPDATE ${ACTIVITY_LOG} SET content = $1, updated_at = $2
+     WHERE id = $3 AND user_id = $4 AND type = 'note'`,
+    [content, now, id, userId]
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+export async function dbDeleteLogEntry(id: string, userId: string): Promise<boolean> {
+  const { rowCount } = await sql.query(
+    `DELETE FROM ${ACTIVITY_LOG} WHERE id = $1 AND user_id = $2 AND type = 'note'`,
+    [id, userId]
   );
   return (rowCount ?? 0) > 0;
 }

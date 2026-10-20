@@ -12,6 +12,7 @@ const P = process.env.POSTGRES_TABLE_PREFIX ?? '';
 const USERS = `${P}users`;
 const JOBS = `${P}jobs`;
 const RESUME_FILES = `${P}resume_files`;
+const ACTIVITY_LOG = `${P}activity_log`;
 
 const steps = [
   [`create ${USERS}`, `
@@ -69,6 +70,39 @@ const steps = [
   [`add ${JOBS}.interview_stage`, `ALTER TABLE ${JOBS} ADD COLUMN IF NOT EXISTS interview_stage TEXT`],
   // Pasted-text resume (dev only, never deployed) replaced by uploads
   [`drop ${P}resumes`, `DROP TABLE IF EXISTS ${P}resumes`],
+  [`create ${ACTIVITY_LOG}`, `
+    CREATE TABLE IF NOT EXISTS ${ACTIVITY_LOG} (
+      id           TEXT PRIMARY KEY,
+      job_id       TEXT NOT NULL REFERENCES ${JOBS}(id) ON DELETE CASCADE,
+      user_id      TEXT NOT NULL,
+      type         TEXT NOT NULL,
+      content      TEXT NOT NULL,
+      from_status  TEXT,
+      to_status    TEXT,
+      from_stage   TEXT,
+      to_stage     TEXT,
+      created_at   TEXT NOT NULL,
+      updated_at   TEXT NOT NULL
+    )
+  `],
+  [`index ${ACTIVITY_LOG}(job_id, created_at)`, `CREATE INDEX IF NOT EXISTS ${ACTIVITY_LOG}_job_idx ON ${ACTIVITY_LOG} (job_id, created_at DESC)`],
+  // Migrate existing notes to log entries (idempotent via NOT EXISTS guard)
+  [`migrate notes → ${ACTIVITY_LOG}`, `
+    INSERT INTO ${ACTIVITY_LOG} (id, job_id, user_id, type, content, created_at, updated_at)
+    SELECT
+      'note-' || id,
+      id,
+      user_id,
+      'note',
+      notes,
+      applied_at,
+      applied_at
+    FROM ${JOBS}
+    WHERE notes IS NOT NULL AND notes != ''
+      AND NOT EXISTS (
+        SELECT 1 FROM ${ACTIVITY_LOG} WHERE ${ACTIVITY_LOG}.id = 'note-' || ${JOBS}.id
+      )
+  `],
 ];
 
 for (const [label, query] of steps) {

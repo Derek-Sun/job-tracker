@@ -37,10 +37,28 @@ export interface JobApplication {
   status: JobStatus;
   interviewStage?: InterviewStage;
   url?: string;
+  /** @deprecated migrated to ActivityLog; kept for backward-compat during transition */
   notes?: string;
   /** Uploaded resume recorded as the one sent for this job */
   resumeId?: string;
   appliedAt: string;
+  updatedAt: string;
+  /** Most recent activity_log entry createdAt; populated by dbGetAllJobs JOIN */
+  lastActivityAt?: string;
+}
+
+export type LogEntryType = 'status_change' | 'note';
+
+export interface ActivityLogEntry {
+  id: string;
+  jobId: string;
+  type: LogEntryType;
+  content: string;
+  fromStatus?: JobStatus;
+  toStatus?: JobStatus;
+  fromStage?: InterviewStage;
+  toStage?: InterviewStage;
+  createdAt: string;
   updatedAt: string;
 }
 
