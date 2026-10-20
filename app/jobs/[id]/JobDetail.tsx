@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { updateJob, deleteJob, resumeFileUrl } from '@/lib/storage';
 import { JobForm } from '@/components/JobForm';
 import { StatusBadge } from '@/components/StatusBadge';
+import { InterviewStagePicker } from '@/components/InterviewStagePicker';
 import { BackLink } from '@/components/BackLink';
-import type { JobApplication, ResumeFile } from '@/lib/types';
+import type { JobApplication, ResumeFile, InterviewStage } from '@/lib/types';
 import { formatDate, formatSalary } from '@/lib/utils';
 import { Pencil, Trash2, ExternalLink, X, DollarSign, FileText, StickyNote } from 'lucide-react';
 
@@ -25,6 +26,11 @@ export function JobDetail({ job, resume }: {
       router.refresh();
       setEditing(false);
     });
+  }
+
+  async function handleStageChange(stage: InterviewStage) {
+    await updateJob({ ...job, interviewStage: stage, updatedAt: new Date().toISOString() });
+    startTransition(() => router.refresh());
   }
 
   async function handleDelete() {
@@ -52,6 +58,9 @@ export function JobDetail({ job, resume }: {
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-xl font-bold text-slate-900">{job.title}</h1>
               <StatusBadge status={job.status} />
+              {job.status === 'interview' && (
+                <InterviewStagePicker stage={job.interviewStage} onChange={handleStageChange} />
+              )}
             </div>
             <p className="mt-1 text-sm font-medium text-slate-600">{job.company}</p>
             {job.location && <p className="mt-0.5 text-sm text-slate-400">{job.location}</p>}

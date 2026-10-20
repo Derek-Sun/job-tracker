@@ -2,7 +2,15 @@ export type JobStatus =
   | 'applied'
   | 'interview'
   | 'offer'
-  | 'rejected';
+  | 'rejected'
+  | 'withdrawn'
+  | 'ghosted';
+
+export type InterviewStage =
+  | 'phone_screen'
+  | 'technical'
+  | 'onsite'
+  | 'final';
 
 export interface SalaryBand {
   label: string;
@@ -27,6 +35,7 @@ export interface JobApplication {
   salary?: Salary;
   description: string;
   status: JobStatus;
+  interviewStage?: InterviewStage;
   url?: string;
   notes?: string;
   /** Uploaded resume recorded as the one sent for this job */
@@ -58,14 +67,29 @@ export interface ParsedJob {
 }
 
 export const STATUS_ORDER: JobStatus[] = [
-  'applied', 'interview', 'offer', 'rejected',
+  'applied', 'interview', 'offer', 'rejected', 'withdrawn', 'ghosted',
 ];
+
+export const TERMINAL_STATUSES = new Set<JobStatus>(['rejected', 'withdrawn', 'ghosted']);
+
+export const INTERVIEW_STAGE_ORDER: InterviewStage[] = [
+  'phone_screen', 'technical', 'onsite', 'final',
+];
+
+export const INTERVIEW_STAGE_LABELS: Record<InterviewStage, string> = {
+  phone_screen: 'Phone Screen',
+  technical: 'Technical',
+  onsite: 'Onsite',
+  final: 'Final',
+};
 
 export const STATUS_LABELS: Record<JobStatus, string> = {
   applied: 'Applied',
   interview: 'Interviewing',
   offer: 'Offer',
   rejected: 'Rejected',
+  withdrawn: 'Withdrawn',
+  ghosted: 'Ghosted',
 };
 
 export const STATUS_COLORS: Record<JobStatus, string> = {
@@ -73,6 +97,8 @@ export const STATUS_COLORS: Record<JobStatus, string> = {
   interview: 'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
   offer:     'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
   rejected:  'bg-rose-50 text-rose-600 ring-1 ring-rose-200',
+  withdrawn: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  ghosted:   'bg-slate-100 text-slate-500 ring-1 ring-slate-200',
 };
 
 export const STATUS_DOT: Record<JobStatus, string> = {
@@ -80,4 +106,6 @@ export const STATUS_DOT: Record<JobStatus, string> = {
   interview: 'bg-violet-500',
   offer:     'bg-emerald-500',
   rejected:  'bg-rose-500',
+  withdrawn: 'bg-amber-500',
+  ghosted:   'bg-slate-400',
 };

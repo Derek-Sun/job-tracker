@@ -2,16 +2,19 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import type { JobApplication, JobStatus } from '@/lib/types';
-import { STATUS_LABELS, STATUS_DOT, STATUS_ORDER } from '@/lib/types';
+import { useEffect, useState } from 'react';
+import type { JobApplication, JobStatus, InterviewStage } from '@/lib/types';
+import { STATUS_LABELS, STATUS_DOT, STATUS_ORDER, TERMINAL_STATUSES } from '@/lib/types';
 import { formatDate, formatSalary } from '@/lib/utils';
 import { StatusBadge } from './StatusBadge';
+import { InterviewStagePicker } from './InterviewStagePicker';
 import { Trash2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Check, Search, X } from 'lucide-react';
 
 type SortKey = 'company' | 'title' | 'status' | 'appliedAt';
 
-const FILTERS: (JobStatus | 'all')[] = ['all', ...STATUS_ORDER];
+const ACTIVE_FILTERS: (JobStatus | 'all')[] = ['all', 'applied', 'interview', 'offer'];
+const CLOSED_FILTERS: JobStatus[] = ['rejected', 'withdrawn', 'ghosted'];
+const SHOW_CLOSED_KEY = 'jobTracker:showClosed';
 
 const COLUMNS: { label: string; sortKey?: SortKey }[] = [
   { label: 'Company', sortKey: 'company' },
@@ -25,15 +28,31 @@ interface Props {
   jobs: JobApplication[];
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: JobStatus) => void;
+  onInterviewStageChange: (id: string, stage: InterviewStage | undefined) => void;
 }
 
-export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
+export function JobTable({ jobs, onDelete, onStatusChange, onInterviewStageChange }: Props) {
   const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>('appliedAt');
   const [sortAsc, setSortAsc] = useState(false);
   const [filter, setFilter] = useState<JobStatus | 'all'>('all');
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [showClosed, setShowClosed] = useState(false);
+
+  useEffect(() => {
+    setShowClosed(localStorage.getItem(SHOW_CLOSED_KEY) === 'true');
+  }, []);
+
+  function toggleShowClosed() {
+    const next = !showClosed;
+    setShowClosed(next);
+    localStorage.setItem(SHOW_CLOSED_KEY, String(next));
+    // If the current filter is a closed status and we're hiding closed, reset to 'all'
+    if (!next && filter !== 'all' && TERMINAL_STATUSES.has(filter as JobStatus)) {
+      setFilter('all');
+    }
+  }
 
   const filtered = jobs
     .filter(j => filter === 'all' || j.status === filter)
@@ -105,7 +124,7 @@ export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
 
       {/* Filter tabs */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {FILTERS.map(s => {
+        {[...ACTIVE_FILTERS, ...(showClosed ? CLOSED_FILTERS : [])].map(s => {
           const count = s === 'all' ? jobs.length : jobs.filter(j => j.status === s).length;
           if (count === 0 && s !== 'all') return null;
           const active = filter === s;
@@ -124,6 +143,12 @@ export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
             </button>
           );
         })}
+        <button
+          onClick={toggleShowClosed}
+          className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-400 border border-dashed border-slate-200 hover:border-slate-300 hover:text-slate-600 transition-colors"
+        >
+          {showClosed ? 'Hide closed' : 'Show closed'}
+        </button>
       </div>
 
       {/* Table */}
@@ -226,6 +251,14 @@ export function JobTable({ jobs, onDelete, onStatusChange }: Props) {
                         </>
                       )}
                     </div>
+                    {job.status === 'interview' && (
+                      <div className="mt-0.5">
+                        <InterviewStagePicker
+                          stage={job.interviewStage}
+                          onChange={stage => onInterviewStageChange(job.id, stage)}
+                        />
+                      </div>
+                    )}
                   </td>
 
                   <td className="px-4 py-3.5 text-slate-600 whitespace-nowrap tabular-nums">

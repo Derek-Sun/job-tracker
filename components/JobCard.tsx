@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import type { JobApplication } from '@/lib/types';
+import type { JobApplication, InterviewStage } from '@/lib/types';
 import { formatDate, formatSalary } from '@/lib/utils';
 import { Trash2, ExternalLink } from 'lucide-react';
+import { InterviewStagePicker } from './InterviewStagePicker';
 
 interface Props {
   job: JobApplication;
@@ -9,9 +10,10 @@ interface Props {
   isDragging: boolean;
   onDragStart: (e: React.DragEvent, id: string) => void;
   onDragEnd: () => void;
+  onInterviewStageChange: (stage: InterviewStage | undefined) => void;
 }
 
-export function JobCard({ job, onDelete, isDragging, onDragStart, onDragEnd }: Props) {
+export function JobCard({ job, onDelete, isDragging, onDragStart, onDragEnd, onInterviewStageChange }: Props) {
   const salary = formatSalary(job.salary);
 
   return (
@@ -57,6 +59,11 @@ export function JobCard({ job, onDelete, isDragging, onDragStart, onDragEnd }: P
       <p className="mt-0.5 text-sm text-slate-600 line-clamp-1">
         {job.company || <span className="italic text-slate-400">Unknown</span>}
       </p>
+      {job.status === 'interview' && (
+        <div className="mt-1">
+          <InterviewStagePicker stage={job.interviewStage} onChange={onInterviewStageChange} />
+        </div>
+      )}
       {job.location && (
         <p className="mt-0.5 text-xs text-slate-400 line-clamp-1">{job.location}</p>
       )}

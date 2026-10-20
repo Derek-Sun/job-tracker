@@ -1,5 +1,5 @@
 import { sql } from '@vercel/postgres';
-import type { JobApplication, ResumeFile, SalaryBand } from './types';
+import type { JobApplication, InterviewStage, ResumeFile, SalaryBand } from './types';
 
 // Table names — prefix is set per environment via POSTGRES_TABLE_PREFIX (e.g. "jt_", "dev_")
 const P = process.env.POSTGRES_TABLE_PREFIX ?? '';
@@ -25,6 +25,7 @@ interface JobRow {
   responsibilities: string;
   requirements: string;
   status: string;
+  interview_stage: string | null;
   url: string | null;
   notes: string | null;
   resume_id: string | null;
@@ -63,6 +64,7 @@ function rowToJob(row: JobRow): JobApplication {
       : undefined,
     description: [row.responsibilities, row.requirements].filter(s => s?.trim()).join('\n\n'),
     status: row.status as JobApplication['status'],
+    interviewStage: (row.interview_stage as InterviewStage) ?? undefined,
     url: row.url ?? undefined,
     notes: row.notes ?? undefined,
     resumeId: row.resume_id ?? undefined,
@@ -87,6 +89,7 @@ function jobToParams(job: JobApplication, userId: string) {
     responsibilities: job.description,
     requirements: '',
     status: job.status,
+    interview_stage: job.interviewStage ?? null,
     url: job.url ?? null,
     notes: job.notes ?? null,
     resume_id: job.resumeId ?? null,

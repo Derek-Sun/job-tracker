@@ -66,6 +66,7 @@ const steps = [
   [`index ${RESUME_FILES}(user_id)`, `CREATE INDEX IF NOT EXISTS ${RESUME_FILES}_user_idx ON ${RESUME_FILES} (user_id)`],
   // RESTRICT: a resume can't be deleted while a job records it as the one sent
   [`add ${JOBS}.resume_id`, `ALTER TABLE ${JOBS} ADD COLUMN IF NOT EXISTS resume_id TEXT REFERENCES ${RESUME_FILES}(id) ON DELETE RESTRICT`],
+  [`add ${JOBS}.interview_stage`, `ALTER TABLE ${JOBS} ADD COLUMN IF NOT EXISTS interview_stage TEXT`],
   // Pasted-text resume (dev only, never deployed) replaced by uploads
   [`drop ${P}resumes`, `DROP TABLE IF EXISTS ${P}resumes`],
 ];

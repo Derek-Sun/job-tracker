@@ -1,27 +1,34 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { JobApplication, JobStatus } from '@/lib/types';
-import { STATUS_ORDER, STATUS_LABELS, STATUS_DOT } from '@/lib/types';
+import type { JobApplication, JobStatus, InterviewStage } from '@/lib/types';
+import { STATUS_ORDER, STATUS_LABELS, STATUS_DOT, TERMINAL_STATUSES } from '@/lib/types';
 import { JobCard } from './JobCard';
 
 interface Props {
   jobs: JobApplication[];
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: JobStatus) => void;
+  onInterviewStageChange: (id: string, stage: InterviewStage | undefined) => void;
 }
 
 const EDGE_ZONE = 60;
 const SCROLL_SPEED = 12; // px per animation frame
+const SHOW_CLOSED_KEY = 'jobTracker:showClosed';
 
-export function JobBoard({ jobs, onDelete, onStatusChange }: Props) {
+export function JobBoard({ jobs, onDelete, onStatusChange, onInterviewStageChange }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<JobStatus | null>(null);
+  const [showClosed, setShowClosed] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Direction is read/written from a rAF loop, not React state — driving the scroll off
   // dragover events directly is unreliable since Chromium doesn't refire dragover on a
   // steady timer while the pointer is held still near the edge.
   const edgeScrollDir = useRef<'left' | 'right' | null>(null);
+
+  useEffect(() => {
+    setShowClosed(localStorage.getItem(SHOW_CLOSED_KEY) === 'true');
+  }, []);
 
   useEffect(() => {
     if (!draggedId) return;
@@ -36,6 +43,12 @@ export function JobBoard({ jobs, onDelete, onStatusChange }: Props) {
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [draggedId]);
+
+  function toggleShowClosed() {
+    const next = !showClosed;
+    setShowClosed(next);
+    localStorage.setItem(SHOW_CLOSED_KEY, String(next));
+  }
 
   function handleDragStart(e: React.DragEvent, id: string) {
     e.dataTransfer.setData('text/plain', id);
@@ -81,50 +94,64 @@ export function JobBoard({ jobs, onDelete, onStatusChange }: Props) {
     if (job && job.status !== status) onStatusChange(id, status);
   }
 
+  const visibleStatuses = STATUS_ORDER.filter(s => showClosed || !TERMINAL_STATUSES.has(s));
+  const closedCount = jobs.filter(j => TERMINAL_STATUSES.has(j.status)).length;
+
   return (
-    <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-2">
-      {STATUS_ORDER.map(status => {
-        const columnJobs = jobs
-          .filter(j => j.status === status)
-          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-        const isOver = dragOverStatus === status;
+    <div className="space-y-3">
+      <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-2">
+        {visibleStatuses.map(status => {
+          const columnJobs = jobs
+            .filter(j => j.status === status)
+            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+          const isOver = dragOverStatus === status;
 
-        return (
-          <div key={status} className="w-72 shrink-0">
-            <div className="mb-2 flex items-center gap-2 px-1">
-              <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[status]}`} />
-              <h3 className="text-sm font-semibold text-slate-700">{STATUS_LABELS[status]}</h3>
-              <span className="text-xs text-slate-400">{columnJobs.length}</span>
-            </div>
+          return (
+            <div key={status} className="w-72 shrink-0">
+              <div className="mb-2 flex items-center gap-2 px-1">
+                <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[status]}`} />
+                <h3 className="text-sm font-semibold text-slate-700">{STATUS_LABELS[status]}</h3>
+                <span className="text-xs text-slate-400">{columnJobs.length}</span>
+              </div>
 
-            <div
-              onDragOver={e => handleDragOver(e, status)}
-              onDragLeave={() => handleDragLeave(status)}
-              onDrop={e => handleDrop(e, status)}
-              className={`min-h-40 space-y-2 rounded-xl border p-2 transition-colors ${
-                isOver
-                  ? 'border-indigo-300 bg-indigo-50/40 ring-2 ring-indigo-300'
-                  : 'border-slate-200 bg-slate-50/60'
-              }`}
-            >
-              {columnJobs.length === 0 ? (
-                <p className="py-6 text-center text-xs italic text-slate-300">No jobs</p>
-              ) : (
-                columnJobs.map(job => (
-                  <JobCard
-                    key={job.id}
-                    job={job}
-                    onDelete={onDelete}
-                    isDragging={draggedId === job.id}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                  />
-                ))
-              )}
+              <div
+                onDragOver={e => handleDragOver(e, status)}
+                onDragLeave={() => handleDragLeave(status)}
+                onDrop={e => handleDrop(e, status)}
+                className={`min-h-40 space-y-2 rounded-xl border p-2 transition-colors ${
+                  isOver
+                    ? 'border-indigo-300 bg-indigo-50/40 ring-2 ring-indigo-300'
+                    : 'border-slate-200 bg-slate-50/60'
+                }`}
+              >
+                {columnJobs.length === 0 ? (
+                  <p className="py-6 text-center text-xs italic text-slate-300">No jobs</p>
+                ) : (
+                  columnJobs.map(job => (
+                    <JobCard
+                      key={job.id}
+                      job={job}
+                      onDelete={onDelete}
+                      isDragging={draggedId === job.id}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onInterviewStageChange={stage => onInterviewStageChange(job.id, stage)}
+                    />
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      <div className="flex justify-end">
+        <button
+          onClick={toggleShowClosed}
+          className="text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
+        >
+          {showClosed ? 'Hide closed' : `Show closed${closedCount > 0 ? ` (${closedCount})` : ''}`}
+        </button>
+      </div>
     </div>
   );
 }

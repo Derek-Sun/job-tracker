@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import type { JobApplication, JobStatus, Salary, SalaryBand } from '@/lib/types';
-import { STATUS_LABELS, STATUS_ORDER } from '@/lib/types';
+import type { JobApplication, JobStatus, InterviewStage, Salary, SalaryBand } from '@/lib/types';
+import { STATUS_LABELS, STATUS_ORDER, INTERVIEW_STAGE_ORDER, INTERVIEW_STAGE_LABELS } from '@/lib/types';
 import { INPUT } from '@/lib/styles';
 import { cn } from '@/lib/utils';
 import { ResumePicker } from '@/components/ResumePicker';
@@ -25,6 +25,7 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
   const [location, setLocation]     = useState(initial.location ?? '');
   const [url, setUrl]               = useState(initial.url ?? '');
   const [status, setStatus]         = useState<JobStatus>(initial.status ?? 'applied');
+  const [interviewStage, setInterviewStage] = useState<InterviewStage | undefined>(initial.interviewStage);
   const [salaryRaw, setSalaryRaw]   = useState(initial.salary?.raw ?? '');
   const [salaryMin, setSalaryMin]   = useState(initial.salary?.min?.toString() ?? '');
   const [salaryMax, setSalaryMax]   = useState(initial.salary?.max?.toString() ?? '');
@@ -70,7 +71,7 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
         }
       : undefined;
 
-    await onSave({ title, company, location, url, status, salary, description, notes, resumeId });
+    await onSave({ title, company, location, url, status, interviewStage, salary, description, notes, resumeId });
     setSaving(false);
   }
 
@@ -90,10 +91,30 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
             <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Remote, New York NY, etc." className={input} />
           </Field>
           <Field label="Status">
-            <select value={status} onChange={e => setStatus(e.target.value as JobStatus)} className={input}>
+            <select
+              value={status}
+              onChange={e => {
+                const s = e.target.value as JobStatus;
+                setStatus(s);
+                if (s !== 'interview') setInterviewStage(undefined);
+              }}
+              className={input}
+            >
               {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
             </select>
           </Field>
+          {status === 'interview' && (
+            <Field label="Interview Stage">
+              <select
+                value={interviewStage ?? ''}
+                onChange={e => setInterviewStage((e.target.value as InterviewStage) || undefined)}
+                className={input}
+              >
+                <option value="">— Not set —</option>
+                {INTERVIEW_STAGE_ORDER.map(s => <option key={s} value={s}>{INTERVIEW_STAGE_LABELS[s]}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="Job Posting URL" className="sm:col-span-2">
             <input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..." className={input} />
           </Field>

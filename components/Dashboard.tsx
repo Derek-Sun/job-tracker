@@ -6,7 +6,7 @@ import { deleteJob, updateJob } from '@/lib/storage';
 import { JobTable } from '@/components/JobTable';
 import { JobBoard } from '@/components/JobBoard';
 import { ExportButton } from '@/components/ExportButton';
-import type { JobApplication, JobStatus } from '@/lib/types';
+import type { JobApplication, JobStatus, InterviewStage } from '@/lib/types';
 import { Plus, Briefcase, TrendingUp, Trophy, XCircle, Table2, LayoutGrid } from 'lucide-react';
 
 const VIEW_STORAGE_KEY = 'jobTracker:view';
@@ -40,7 +40,17 @@ export function Dashboard({ initialJobs }: { initialJobs: JobApplication[] }) {
   async function handleStatusChange(id: string, status: JobStatus) {
     const job = jobs.find(j => j.id === id);
     if (!job) return;
-    const updated = { ...job, status, updatedAt: new Date().toISOString() };
+    // Re-entering interview from another status resets the stage (Q23)
+    const interviewStage = status === 'interview' && job.status !== 'interview' ? undefined : job.interviewStage;
+    const updated = { ...job, status, interviewStage, updatedAt: new Date().toISOString() };
+    setJobs(prev => prev.map(j => j.id === id ? updated : j));
+    await updateJob(updated);
+  }
+
+  async function handleInterviewStageChange(id: string, stage: InterviewStage | undefined) {
+    const job = jobs.find(j => j.id === id);
+    if (!job) return;
+    const updated = { ...job, interviewStage: stage, updatedAt: new Date().toISOString() };
     setJobs(prev => prev.map(j => j.id === id ? updated : j));
     await updateJob(updated);
   }
@@ -94,9 +104,9 @@ export function Dashboard({ initialJobs }: { initialJobs: JobApplication[] }) {
             </div>
           </div>
           {view === 'table' ? (
-            <JobTable jobs={jobs} onDelete={handleDelete} onStatusChange={handleStatusChange} />
+            <JobTable jobs={jobs} onDelete={handleDelete} onStatusChange={handleStatusChange} onInterviewStageChange={handleInterviewStageChange} />
           ) : (
-            <JobBoard jobs={jobs} onDelete={handleDelete} onStatusChange={handleStatusChange} />
+            <JobBoard jobs={jobs} onDelete={handleDelete} onStatusChange={handleStatusChange} onInterviewStageChange={handleInterviewStageChange} />
           )}
         </>
       )}
