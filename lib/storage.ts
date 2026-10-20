@@ -1,4 +1,4 @@
-import type { JobApplication, ParsedJob, ResumeFile } from './types';
+import type { JobApplication, ParsedJob, ResumeFile, ActivityLogEntry } from './types';
 
 export async function getAllJobs(): Promise<JobApplication[]> {
   const res = await fetch('/api/jobs');
@@ -83,4 +83,32 @@ export async function deleteResume(id: string): Promise<void> {
 
 export function resumeFileUrl(id: string): string {
   return `/api/resumes/${id}/file`;
+}
+
+export async function addLogEntry(jobId: string, entry: ActivityLogEntry): Promise<ActivityLogEntry> {
+  const res = await fetch(`/api/jobs/${jobId}/log`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(entry),
+  });
+  if (!res.ok) throw new Error('Failed to add log entry');
+  return res.json();
+}
+
+export async function editLogEntry(jobId: string, entryId: string, content: string): Promise<void> {
+  const res = await fetch(`/api/jobs/${jobId}/log`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ entryId, content }),
+  });
+  if (!res.ok) throw new Error('Failed to edit log entry');
+}
+
+export async function deleteLogEntry(jobId: string, entryId: string): Promise<void> {
+  const res = await fetch(`/api/jobs/${jobId}/log`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ entryId }),
+  });
+  if (!res.ok) throw new Error('Failed to delete log entry');
 }

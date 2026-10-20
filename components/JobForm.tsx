@@ -33,7 +33,6 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
     initial.salary?.bands?.map(b => ({ label: b.label, min: b.min.toString(), max: b.max.toString() })) ?? []
   );
   const [description, setDescription] = useState(initial.description ?? '');
-  const [notes, setNotes] = useState(initial.notes ?? '');
   const [resumeId, setResumeId] = useState<string | undefined>(initial.resumeId);
   const [saving, setSaving]   = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -71,7 +70,7 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
         }
       : undefined;
 
-    await onSave({ title, company, location, url, status, interviewStage, salary, description, notes, resumeId });
+    await onSave({ title, company, location, url, status, interviewStage, salary, description, resumeId });
     setSaving(false);
   }
 
@@ -210,11 +209,6 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
             {parsing ? 'Parsing…' : 'Parse fields from description'}
           </button>
         )}
-      </FormSection>
-
-      {/* Notes */}
-      <FormSection title="Notes">
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Recruiter contact, interview notes, referral info…" className={`${input} resize-none`} />
       </FormSection>
 
       <button
