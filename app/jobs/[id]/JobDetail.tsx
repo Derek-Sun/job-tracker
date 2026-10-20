@@ -8,7 +8,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { InterviewStagePicker } from '@/components/InterviewStagePicker';
 import { ActivityLog } from '@/components/ActivityLog';
 import { BackLink } from '@/components/BackLink';
-import type { JobApplication, ResumeFile, InterviewStage } from '@/lib/types';
+import type { JobApplication, ResumeFile, InterviewStage, ActivityLogEntry } from '@/lib/types';
 import { formatDate, formatSalary } from '@/lib/utils';
 import { Pencil, Trash2, ExternalLink, X, DollarSign, FileText } from 'lucide-react';
 
