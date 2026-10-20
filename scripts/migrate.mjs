@@ -45,11 +45,10 @@ const steps = [
       updated_at       TEXT NOT NULL
     )
   `],
-  // Status set was simplified from 7 values down to 4 — remap rows from any prior
+  // Status set was simplified from 7 values — remap rows from any prior
   // deploy onto the closest surviving status.
   ['remap status saved → applied', `UPDATE ${JOBS} SET status = 'applied' WHERE status = 'saved'`],
   ['remap status phone_screen → interview', `UPDATE ${JOBS} SET status = 'interview' WHERE status = 'phone_screen'`],
-  ['remap status withdrawn → rejected', `UPDATE ${JOBS} SET status = 'rejected' WHERE status = 'withdrawn'`],
   // Backs dbGetAllJobs: WHERE user_id = $1 ORDER BY applied_at DESC
   [`index ${JOBS}(user_id, applied_at)`, `CREATE INDEX IF NOT EXISTS ${JOBS}_user_applied_idx ON ${JOBS} (user_id, applied_at DESC)`],
   // Uploaded resume PDFs; jobs record which one was sent

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { JobApplication, JobStatus, InterviewStage } from '@/lib/types';
 import { STATUS_ORDER, STATUS_LABELS, STATUS_DOT, TERMINAL_STATUSES } from '@/lib/types';
 import { useLocalStorageBool } from '@/lib/hooks';

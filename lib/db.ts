@@ -190,15 +190,42 @@ export async function dbInsertJob(job: JobApplication, userId: string): Promise<
   );
 }
 
-export async function dbUpdateJob(job: JobApplication, userId: string): Promise<void> {
+/**
+ * Returns false when no job matched (missing or owned by someone else). When `logEntry` is given
+ * it is inserted in the same statement, so the update and its log entry land together or not at all.
+ */
+export async function dbUpdateJob(
+  job: JobApplication,
+  userId: string,
+  logEntry?: ActivityLogEntry
+): Promise<boolean> {
   const { id, user_id, applied_at: _, ...fields } = jobToParams(job, userId);
   const cols = Object.keys(fields);
   const n = cols.length;
-  await sql.query(
-    `UPDATE ${JOBS} SET ${cols.map((c, i) => `${c} = $${i + 1}`).join(', ')}
-     WHERE id = $${n + 1} AND user_id = $${n + 2}`,
-    [...Object.values(fields), id, user_id]
+  const update = `UPDATE ${JOBS} SET ${cols.map((c, i) => `${c} = $${i + 1}`).join(', ')}
+     WHERE id = $${n + 1} AND user_id = $${n + 2}
+     RETURNING id`;
+  const params = [...Object.values(fields), id, user_id];
+
+  if (!logEntry) {
+    const { rowCount } = await sql.query(update, params);
+    return (rowCount ?? 0) > 0;
+  }
+
+  const l = (i: number) => `$${n + 3 + i}`;
+  const { rows } = await sql.query<{ updated: boolean }>(
+    `WITH upd AS (${update}),
+     ins AS (
+       INSERT INTO ${ACTIVITY_LOG} (id, job_id, user_id, type, content, from_status, to_status, from_stage, to_stage, created_at, updated_at)
+       SELECT ${Array.from({ length: 11 }, (_, i) => l(i)).join(', ')} FROM upd
+     )
+     SELECT EXISTS (SELECT 1 FROM upd) AS updated`,
+    [...params, logEntry.id, logEntry.jobId, userId, logEntry.type, logEntry.content,
+     logEntry.fromStatus ?? null, logEntry.toStatus ?? null,
+     logEntry.fromStage ?? null, logEntry.toStage ?? null,
+     logEntry.createdAt, logEntry.updatedAt]
   );
+  return rows[0].updated;
 }
 
 export async function dbDeleteJob(id: string, userId: string): Promise<void> {
@@ -307,20 +334,20 @@ export async function dbInsertLogEntry(entry: ActivityLogEntry, userId: string):
   );
 }
 
-export async function dbUpdateLogEntry(id: string, userId: string, content: string): Promise<boolean> {
+export async function dbUpdateLogEntry(id: string, jobId: string, userId: string, content: string): Promise<boolean> {
   const now = new Date().toISOString();
   const { rowCount } = await sql.query(
     `UPDATE ${ACTIVITY_LOG} SET content = $1, updated_at = $2
-     WHERE id = $3 AND user_id = $4 AND type = 'note'`,
-    [content, now, id, userId]
+     WHERE id = $3 AND job_id = $4 AND user_id = $5 AND type = 'note'`,
+    [content, now, id, jobId, userId]
   );
   return (rowCount ?? 0) > 0;
 }
 
-export async function dbDeleteLogEntry(id: string, userId: string): Promise<boolean> {
+export async function dbDeleteLogEntry(id: string, jobId: string, userId: string): Promise<boolean> {
   const { rowCount } = await sql.query(
-    `DELETE FROM ${ACTIVITY_LOG} WHERE id = $1 AND user_id = $2 AND type = 'note'`,
-    [id, userId]
+    `DELETE FROM ${ACTIVITY_LOG} WHERE id = $1 AND job_id = $2 AND user_id = $3 AND type = 'note'`,
+    [id, jobId, userId]
   );
   return (rowCount ?? 0) > 0;
 }
