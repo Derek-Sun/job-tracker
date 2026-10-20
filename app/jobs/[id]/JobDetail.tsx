@@ -2,14 +2,13 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateJob, deleteJob, resumeFileUrl, addLogEntry } from '@/lib/storage';
+import { updateJob, deleteJob, resumeFileUrl } from '@/lib/storage';
 import { JobForm } from '@/components/JobForm';
 import { StatusBadge } from '@/components/StatusBadge';
 import { InterviewStagePicker } from '@/components/InterviewStagePicker';
 import { ActivityLog } from '@/components/ActivityLog';
 import { BackLink } from '@/components/BackLink';
-import type { JobApplication, ResumeFile, InterviewStage, ActivityLogEntry } from '@/lib/types';
-import { STATUS_LABELS, INTERVIEW_STAGE_LABELS } from '@/lib/types';
+import type { JobApplication, ResumeFile, InterviewStage } from '@/lib/types';
 import { formatDate, formatSalary } from '@/lib/utils';
 import { Pencil, Trash2, ExternalLink, X, DollarSign, FileText } from 'lucide-react';
 
@@ -23,40 +22,7 @@ export function JobDetail({ job, resume, logEntries }: {
   const [, startTransition] = useTransition();
 
   async function handleSave(fields: Partial<JobApplication>) {
-    const now = new Date().toISOString();
-    await updateJob({ ...job, ...fields, updatedAt: now });
-
-    if (fields.status && fields.status !== job.status) {
-      const entry: ActivityLogEntry = {
-        id: crypto.randomUUID(),
-        jobId: job.id,
-        type: 'status_change',
-        content: `${STATUS_LABELS[job.status]} → ${STATUS_LABELS[fields.status]}`,
-        fromStatus: job.status,
-        toStatus: fields.status,
-        fromStage: job.interviewStage,
-        toStage: fields.status === 'interview' ? fields.interviewStage : undefined,
-        createdAt: now,
-        updatedAt: now,
-      };
-      await addLogEntry(job.id, entry).catch(() => {});
-    } else if (fields.interviewStage && fields.interviewStage !== job.interviewStage) {
-      const fromStageLabel = job.interviewStage ? INTERVIEW_STAGE_LABELS[job.interviewStage] : 'None';
-      const entry: ActivityLogEntry = {
-        id: crypto.randomUUID(),
-        jobId: job.id,
-        type: 'status_change',
-        content: `Interview stage: ${fromStageLabel} → ${INTERVIEW_STAGE_LABELS[fields.interviewStage]}`,
-        fromStatus: job.status,
-        toStatus: job.status,
-        fromStage: job.interviewStage,
-        toStage: fields.interviewStage,
-        createdAt: now,
-        updatedAt: now,
-      };
-      await addLogEntry(job.id, entry).catch(() => {});
-    }
-
+    await updateJob({ ...job, ...fields, updatedAt: new Date().toISOString() });
     startTransition(() => {
       router.refresh();
       setEditing(false);
@@ -64,22 +30,7 @@ export function JobDetail({ job, resume, logEntries }: {
   }
 
   async function handleStageChange(stage: InterviewStage) {
-    const now = new Date().toISOString();
-    await updateJob({ ...job, interviewStage: stage, updatedAt: now });
-    const fromStageLabel = job.interviewStage ? INTERVIEW_STAGE_LABELS[job.interviewStage] : 'None';
-    const entry: ActivityLogEntry = {
-      id: crypto.randomUUID(),
-      jobId: job.id,
-      type: 'status_change',
-      content: `Interview stage: ${fromStageLabel} → ${INTERVIEW_STAGE_LABELS[stage]}`,
-      fromStatus: job.status,
-      toStatus: job.status,
-      fromStage: job.interviewStage,
-      toStage: stage,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await addLogEntry(job.id, entry).catch(() => {});
+    await updateJob({ ...job, interviewStage: stage, updatedAt: new Date().toISOString() });
     startTransition(() => router.refresh());
   }
 

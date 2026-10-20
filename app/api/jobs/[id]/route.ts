@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { dbUpdateJob, dbDeleteJob, dbResumeFileExists } from '@/lib/db';
+import { dbGetJob, dbUpdateJob, dbDeleteJob, dbResumeFileExists, dbInsertLogEntry } from '@/lib/db';
 import { withSession } from '@/lib/api';
-import type { JobApplication } from '@/lib/types';
+import type { JobApplication, ActivityLogEntry } from '@/lib/types';
+import { STATUS_LABELS, INTERVIEW_STAGE_LABELS } from '@/lib/types';
 
 type Ctx = RouteContext<'/api/jobs/[id]'>;
 
@@ -12,7 +13,48 @@ export const PUT = withSession<Ctx>(async (session, req, { params }) => {
   if (body.resumeId && !(await dbResumeFileExists(body.resumeId, session.userId))) {
     return NextResponse.json({ error: 'Resume not found' }, { status: 400 });
   }
+
+  const oldJob = await dbGetJob(id, session.userId);
   await dbUpdateJob(body, session.userId);
+
+  if (oldJob) {
+    const now = body.updatedAt;
+    const statusChanged = body.status !== oldJob.status;
+    const stageChanged = body.interviewStage !== oldJob.interviewStage;
+    let entry: ActivityLogEntry | null = null;
+
+    if (statusChanged) {
+      entry = {
+        id: crypto.randomUUID(),
+        jobId: id,
+        type: 'status_change',
+        content: `${STATUS_LABELS[oldJob.status]} → ${STATUS_LABELS[body.status]}`,
+        fromStatus: oldJob.status,
+        toStatus: body.status,
+        fromStage: oldJob.interviewStage,
+        toStage: body.status === 'interview' ? body.interviewStage : undefined,
+        createdAt: now,
+        updatedAt: now,
+      };
+    } else if (stageChanged && body.interviewStage) {
+      const fromLabel = oldJob.interviewStage ? INTERVIEW_STAGE_LABELS[oldJob.interviewStage] : 'None';
+      entry = {
+        id: crypto.randomUUID(),
+        jobId: id,
+        type: 'status_change',
+        content: `Interview stage: ${fromLabel} → ${INTERVIEW_STAGE_LABELS[body.interviewStage]}`,
+        fromStatus: body.status,
+        toStatus: body.status,
+        fromStage: oldJob.interviewStage,
+        toStage: body.interviewStage,
+        createdAt: now,
+        updatedAt: now,
+      };
+    }
+
+    if (entry) await dbInsertLogEntry(entry, session.userId);
+  }
+
   return NextResponse.json(body);
 });
 

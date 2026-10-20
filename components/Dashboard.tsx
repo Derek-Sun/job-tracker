@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { deleteJob, updateJob, addLogEntry } from '@/lib/storage';
+import { deleteJob, updateJob } from '@/lib/storage';
 import { JobTable } from '@/components/JobTable';
 import { JobBoard } from '@/components/JobBoard';
 import { ExportButton } from '@/components/ExportButton';
-import type { JobApplication, JobStatus, InterviewStage, ActivityLogEntry } from '@/lib/types';
-import { STATUS_LABELS, INTERVIEW_STAGE_LABELS } from '@/lib/types';
+import type { JobApplication, JobStatus, InterviewStage } from '@/lib/types';
 import { Plus, Briefcase, TrendingUp, Trophy, XCircle, Table2, LayoutGrid } from 'lucide-react';
 
 const VIEW_STORAGE_KEY = 'jobTracker:view';
@@ -42,48 +41,17 @@ export function Dashboard({ initialJobs }: { initialJobs: JobApplication[] }) {
     const job = jobs.find(j => j.id === id);
     if (!job) return;
     const interviewStage = status === 'interview' && job.status !== 'interview' ? undefined : job.interviewStage;
-    const now = new Date().toISOString();
-    const updated = { ...job, status, interviewStage, updatedAt: now };
+    const updated = { ...job, status, interviewStage, updatedAt: new Date().toISOString() };
     setJobs(prev => prev.map(j => j.id === id ? updated : j));
     await updateJob(updated);
-    const entry: ActivityLogEntry = {
-      id: crypto.randomUUID(),
-      jobId: id,
-      type: 'status_change',
-      content: `${STATUS_LABELS[job.status]} → ${STATUS_LABELS[status]}`,
-      fromStatus: job.status,
-      toStatus: status,
-      fromStage: job.interviewStage,
-      toStage: undefined,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await addLogEntry(id, entry).catch(() => {});
   }
 
   async function handleInterviewStageChange(id: string, stage: InterviewStage | undefined) {
     const job = jobs.find(j => j.id === id);
     if (!job) return;
-    const now = new Date().toISOString();
-    const updated = { ...job, interviewStage: stage, updatedAt: now };
+    const updated = { ...job, interviewStage: stage, updatedAt: new Date().toISOString() };
     setJobs(prev => prev.map(j => j.id === id ? updated : j));
     await updateJob(updated);
-    if (stage) {
-      const fromStageLabel = job.interviewStage ? INTERVIEW_STAGE_LABELS[job.interviewStage] : 'None';
-      const entry: ActivityLogEntry = {
-        id: crypto.randomUUID(),
-        jobId: id,
-        type: 'status_change',
-        content: `Interview stage: ${fromStageLabel} → ${INTERVIEW_STAGE_LABELS[stage]}`,
-        fromStatus: job.status,
-        toStatus: job.status,
-        fromStage: job.interviewStage,
-        toStage: stage,
-        createdAt: now,
-        updatedAt: now,
-      };
-      await addLogEntry(id, entry).catch(() => {});
-    }
   }
 
   const active   = jobs.filter(j => ['applied', 'interview'].includes(j.status)).length;

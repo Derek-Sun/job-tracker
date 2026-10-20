@@ -105,10 +105,8 @@ export async function editLogEntry(jobId: string, entryId: string, content: stri
 }
 
 export async function deleteLogEntry(jobId: string, entryId: string): Promise<void> {
-  const res = await fetch(`/api/jobs/${jobId}/log`, {
+  const res = await fetch(`/api/jobs/${jobId}/log?entryId=${encodeURIComponent(entryId)}`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ entryId }),
   });
   if (!res.ok) throw new Error('Failed to delete log entry');
 }

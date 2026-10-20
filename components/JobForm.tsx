@@ -94,8 +94,9 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
               value={status}
               onChange={e => {
                 const s = e.target.value as JobStatus;
+                // Q23: reset stage on re-entry to interview; Q14: preserve when leaving
+                if (s === 'interview' && status !== 'interview') setInterviewStage(undefined);
                 setStatus(s);
-                if (s !== 'interview') setInterviewStage(undefined);
               }}
               className={input}
             >

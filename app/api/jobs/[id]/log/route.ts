@@ -13,6 +13,9 @@ export const GET = withSession<Ctx>(async (session, _req, { params }) => {
 export const POST = withSession<Ctx>(async (session, req, { params }) => {
   const { id } = await params;
   const entry: ActivityLogEntry = await req.json();
+  if (entry.type !== 'note') {
+    return NextResponse.json({ error: 'Only note entries can be created via this endpoint' }, { status: 400 });
+  }
   await dbInsertLogEntry(entry, session.userId);
   return NextResponse.json(entry, { status: 201 });
 });
@@ -27,7 +30,8 @@ export const PATCH = withSession<Ctx>(async (session, req, { params }) => {
 
 export const DELETE = withSession<Ctx>(async (session, req, { params }) => {
   await params;
-  const { entryId }: { entryId: string } = await req.json();
+  const entryId = new URL(req.url).searchParams.get('entryId');
+  if (!entryId) return NextResponse.json({ error: 'Missing entryId' }, { status: 400 });
   const ok = await dbDeleteLogEntry(entryId, session.userId);
   if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return new NextResponse(null, { status: 204 });

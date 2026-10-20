@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { JobApplication, JobStatus, InterviewStage } from '@/lib/types';
 import { STATUS_ORDER, STATUS_LABELS, STATUS_DOT, TERMINAL_STATUSES } from '@/lib/types';
+import { useLocalStorageBool } from '@/lib/hooks';
 import { JobCard } from './JobCard';
 
 interface Props {
@@ -14,21 +15,16 @@ interface Props {
 
 const EDGE_ZONE = 60;
 const SCROLL_SPEED = 12; // px per animation frame
-const SHOW_CLOSED_KEY = 'jobTracker:showClosed';
 
 export function JobBoard({ jobs, onDelete, onStatusChange, onInterviewStageChange }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<JobStatus | null>(null);
-  const [showClosed, setShowClosed] = useState(false);
+  const [showClosed, setShowClosed] = useLocalStorageBool('jobTracker:showClosed');
   const scrollRef = useRef<HTMLDivElement>(null);
   // Direction is read/written from a rAF loop, not React state — driving the scroll off
   // dragover events directly is unreliable since Chromium doesn't refire dragover on a
   // steady timer while the pointer is held still near the edge.
   const edgeScrollDir = useRef<'left' | 'right' | null>(null);
-
-  useEffect(() => {
-    setShowClosed(localStorage.getItem(SHOW_CLOSED_KEY) === 'true');
-  }, []);
 
   useEffect(() => {
     if (!draggedId) return;
@@ -45,9 +41,7 @@ export function JobBoard({ jobs, onDelete, onStatusChange, onInterviewStageChang
   }, [draggedId]);
 
   function toggleShowClosed() {
-    const next = !showClosed;
-    setShowClosed(next);
-    localStorage.setItem(SHOW_CLOSED_KEY, String(next));
+    setShowClosed(!showClosed);
   }
 
   function handleDragStart(e: React.DragEvent, id: string) {

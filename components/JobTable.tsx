@@ -2,19 +2,19 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { JobApplication, JobStatus, InterviewStage } from '@/lib/types';
 import { STATUS_LABELS, STATUS_DOT, STATUS_ORDER, TERMINAL_STATUSES } from '@/lib/types';
 import { formatDate, formatSalary } from '@/lib/utils';
 import { StatusBadge } from './StatusBadge';
 import { InterviewStagePicker } from './InterviewStagePicker';
+import { useLocalStorageBool } from '@/lib/hooks';
 import { Trash2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Check, Search, X } from 'lucide-react';
 
 type SortKey = 'company' | 'title' | 'status' | 'appliedAt';
 
 const ACTIVE_FILTERS: (JobStatus | 'all')[] = ['all', 'applied', 'interview', 'offer'];
 const CLOSED_FILTERS: JobStatus[] = ['rejected', 'withdrawn', 'ghosted'];
-const SHOW_CLOSED_KEY = 'jobTracker:showClosed';
 
 const COLUMNS: { label: string; sortKey?: SortKey }[] = [
   { label: 'Company', sortKey: 'company' },
@@ -39,16 +39,11 @@ export function JobTable({ jobs, onDelete, onStatusChange, onInterviewStageChang
   const [filter, setFilter] = useState<JobStatus | 'all'>('all');
   const [openId, setOpenId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [showClosed, setShowClosed] = useState(false);
-
-  useEffect(() => {
-    setShowClosed(localStorage.getItem(SHOW_CLOSED_KEY) === 'true');
-  }, []);
+  const [showClosed, setShowClosed] = useLocalStorageBool('jobTracker:showClosed');
 
   function toggleShowClosed() {
     const next = !showClosed;
     setShowClosed(next);
-    localStorage.setItem(SHOW_CLOSED_KEY, String(next));
     // If the current filter is a closed status and we're hiding closed, reset to 'all'
     if (!next && filter !== 'all' && TERMINAL_STATUSES.has(filter as JobStatus)) {
       setFilter('all');
