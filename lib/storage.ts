@@ -6,11 +6,12 @@ export async function getAllJobs(): Promise<JobApplication[]> {
   return res.json();
 }
 
-export async function saveJob(job: JobApplication): Promise<void> {
+/** `note`, if given, is recorded as the job's first activity log entry. */
+export async function saveJob(job: JobApplication, note?: string): Promise<void> {
   const res = await fetch('/api/jobs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(job),
+    body: JSON.stringify({ ...job, note }),
   });
   if (!res.ok) throw new Error('Failed to save job');
 }

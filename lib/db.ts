@@ -181,19 +181,51 @@ export async function dbGetJob(id: string, userId: string): Promise<JobApplicati
   return rows[0] ? rowToJob(rows[0]) : undefined;
 }
 
-export async function dbInsertJob(job: JobApplication, userId: string): Promise<void> {
+/**
+ * Runs a job INSERT/UPDATE (which must end in `RETURNING id`) and returns whether it hit a row.
+ * When `logEntry` is given it is inserted in the same statement, only if the job write hit a row,
+ * so the two land together or not at all.
+ */
+async function writeJobWithLog(
+  statement: string,
+  params: unknown[],
+  userId: string,
+  logEntry?: ActivityLogEntry
+): Promise<boolean> {
+  if (!logEntry) {
+    const { rowCount } = await sql.query(statement, params);
+    return (rowCount ?? 0) > 0;
+  }
+
+  const l = (i: number) => `$${params.length + 1 + i}`;
+  const { rows } = await sql.query<{ written: boolean }>(
+    `WITH job AS (${statement}),
+     ins AS (
+       INSERT INTO ${ACTIVITY_LOG} (id, job_id, user_id, type, content, from_status, to_status, from_stage, to_stage, created_at, updated_at)
+       SELECT ${Array.from({ length: 11 }, (_, i) => l(i)).join(', ')} FROM job
+     )
+     SELECT EXISTS (SELECT 1 FROM job) AS written`,
+    [...params, logEntry.id, logEntry.jobId, userId, logEntry.type, logEntry.content,
+     logEntry.fromStatus ?? null, logEntry.toStatus ?? null,
+     logEntry.fromStage ?? null, logEntry.toStage ?? null,
+     logEntry.createdAt, logEntry.updatedAt]
+  );
+  return rows[0].written;
+}
+
+export async function dbInsertJob(job: JobApplication, userId: string, logEntry?: ActivityLogEntry): Promise<void> {
   const p = jobToParams(job, userId);
   const cols = Object.keys(p);
-  await sql.query(
-    `INSERT INTO ${JOBS} (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
-    Object.values(p)
+  await writeJobWithLog(
+    `INSERT INTO ${JOBS} (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})
+     RETURNING id`,
+    Object.values(p),
+    userId,
+    logEntry
   );
 }
 
-/**
- * Returns false when no job matched (missing or owned by someone else). When `logEntry` is given
- * it is inserted in the same statement, so the update and its log entry land together or not at all.
- */
+/** Returns false when no job matched (missing or owned by someone else). */
 export async function dbUpdateJob(
   job: JobApplication,
   userId: string,
@@ -202,30 +234,14 @@ export async function dbUpdateJob(
   const { id, user_id, applied_at: _, ...fields } = jobToParams(job, userId);
   const cols = Object.keys(fields);
   const n = cols.length;
-  const update = `UPDATE ${JOBS} SET ${cols.map((c, i) => `${c} = $${i + 1}`).join(', ')}
+  return writeJobWithLog(
+    `UPDATE ${JOBS} SET ${cols.map((c, i) => `${c} = $${i + 1}`).join(', ')}
      WHERE id = $${n + 1} AND user_id = $${n + 2}
-     RETURNING id`;
-  const params = [...Object.values(fields), id, user_id];
-
-  if (!logEntry) {
-    const { rowCount } = await sql.query(update, params);
-    return (rowCount ?? 0) > 0;
-  }
-
-  const l = (i: number) => `$${n + 3 + i}`;
-  const { rows } = await sql.query<{ updated: boolean }>(
-    `WITH upd AS (${update}),
-     ins AS (
-       INSERT INTO ${ACTIVITY_LOG} (id, job_id, user_id, type, content, from_status, to_status, from_stage, to_stage, created_at, updated_at)
-       SELECT ${Array.from({ length: 11 }, (_, i) => l(i)).join(', ')} FROM upd
-     )
-     SELECT EXISTS (SELECT 1 FROM upd) AS updated`,
-    [...params, logEntry.id, logEntry.jobId, userId, logEntry.type, logEntry.content,
-     logEntry.fromStatus ?? null, logEntry.toStatus ?? null,
-     logEntry.fromStage ?? null, logEntry.toStage ?? null,
-     logEntry.createdAt, logEntry.updatedAt]
+     RETURNING id`,
+    [...Object.values(fields), id, user_id],
+    userId,
+    logEntry
   );
-  return rows[0].updated;
 }
 
 export async function dbDeleteJob(id: string, userId: string): Promise<void> {

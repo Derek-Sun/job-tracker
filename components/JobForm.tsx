@@ -13,13 +13,18 @@ interface Props {
   onSave: (job: Partial<JobApplication>) => void | Promise<void>;
   onParse?: (text: string) => void | Promise<void>;
   submitLabel?: string;
+  /**
+   * Shows a Notes box when given. Owned by the parent so the text survives the remount
+   * that follows a parse.
+   */
+  note?: { value: string; onChange: (v: string) => void };
 }
 
 const input = cn(INPUT, 'w-full');
 
 interface BandEntry { label: string; min: string; max: string }
 
-export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Props) {
+export function JobForm({ initial, onSave, onParse, submitLabel = 'Save', note }: Props) {
   const [title, setTitle]           = useState(initial.title ?? '');
   const [company, setCompany]       = useState(initial.company ?? '');
   const [location, setLocation]     = useState(initial.location ?? '');
@@ -211,6 +216,19 @@ export function JobForm({ initial, onSave, onParse, submitLabel = 'Save' }: Prop
           </button>
         )}
       </FormSection>
+
+      {note && (
+        <FormSection title="Notes">
+          <textarea
+            value={note.value}
+            onChange={e => note.onChange(e.target.value)}
+            rows={4}
+            placeholder="Referral, recruiter contact, anything worth remembering…"
+            className={`${input} resize-none`}
+          />
+          <p className="mt-1.5 text-xs text-slate-400">Saved to the job&apos;s activity log.</p>
+        </FormSection>
+      )}
 
       <button
         type="submit"

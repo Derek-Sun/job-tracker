@@ -18,6 +18,7 @@ export default function NewJobPage() {
   const [parsed, setParsed]         = useState<Partial<JobApplication> | null>(null);
   // Bumped on every parse so JobForm remounts with the new initial values
   const [formKey, setFormKey]       = useState(0);
+  const [note, setNote]             = useState('');
 
   function applyParsed(result: ParsedJob, sourceUrl?: string) {
     setParsed({
@@ -62,7 +63,7 @@ export default function NewJobPage() {
       id: newId(),
       appliedAt: now,
       updatedAt: now,
-    });
+    }, note.trim() || undefined);
     router.push('/');
   }
 
@@ -108,6 +109,7 @@ export default function NewJobPage() {
         onSave={handleSave}
         onParse={handleParse}
         submitLabel="Save Application"
+        note={{ value: note, onChange: setNote }}
       />
     </div>
   );
